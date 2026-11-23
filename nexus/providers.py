@@ -132,9 +132,21 @@ def discover_projects(cfg: Config, store: Store) -> tuple[list[dict], list[tuple
     cortex = cortex_projects()
     by_root = {str(Path(c["root"]).resolve()).lower(): c for c in cortex if c["root"]}
     nodes, edges = [], []
-    for root in candidate_roots(cfg, cortex):
+    roots = candidate_roots(cfg, cortex)
+    wanted = {r: (by_root.get(str(r.resolve()).lower()) or {}).get("name") or r.name for r in roots}
+
+    def owns(r: Path) -> bool:  # this root already holds the id from a previous sync: it keeps the plain name
+        n = store.get(f"project:{wanted[r]}")
+        return bool(n and str(n["meta"].get("root", "")).lower() == str(r).lower())
+
+    names, used = {}, set()
+    for r in sorted(roots, key=lambda r: not owns(r)):
+        # Two folders with the same name (e.g. a copy of a repo): the newcomer gets "<parent>/<name>".
+        names[r] = wanted[r] if wanted[r] not in used else f"{r.parent.name}/{wanted[r]}"
+        used.add(names[r])
+    for root in roots:
         cx = by_root.get(str(root.resolve()).lower())
-        name = cx["name"] if cx else root.name
+        name = names[root]
         pid = f"project:{name}"
         facts, tags, providers = [f"Project at {root}."], ["project"], {}
         if cx:

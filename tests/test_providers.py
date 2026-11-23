@@ -101,3 +101,13 @@ def test_vanished_project_is_flagged_not_deleted(env, monkeypatch):
     rep = providers.sync(env["store"], env["cfg"])
     assert "project:planner" in rep["projects"]["missing"]
     assert env["store"].get("project:planner")["status"] == "missing"
+
+
+def test_same_folder_name_in_two_places_gives_two_projects(env, monkeypatch):
+    first = setup(env, monkeypatch)
+    providers.sync(env["store"], env["cfg"])
+    other = make_repo(env["tmp"] / "elsewhere" / "planner")
+    env["cfg"].project_roots = [str(other), str(first)]  # order must not rename the existing project
+    providers.sync(env["store"], env["cfg"])
+    assert env["store"].get("project:planner")["meta"]["root"] == str(first)
+    assert env["store"].get("project:elsewhere/planner")["meta"]["root"] == str(other)
