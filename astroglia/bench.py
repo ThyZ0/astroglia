@@ -34,6 +34,7 @@ def run(store: Store, cfg: Config, labels: str | Path) -> dict:
         base = [i for i, _ in store.fts(q)] if q else []
         base = [i for i in base if (n := store.get(i)) and n["kind"] not in router.DEFAULT_EXCLUDED_KINDS]
         rows.append({"task": t["task"], "rank": _rank(ids, expect), "baseline_rank": _rank(base, expect),
+                     "recall": len(set(ids) & expect) / len(expect),
                      "selected": len(ids), "est_tokens": r["estimated_tokens"], "top": ids[:3]})
 
     def metrics(key: str) -> dict:
@@ -48,6 +49,7 @@ def run(store: Store, cfg: Config, labels: str | Path) -> dict:
         "baseline_bm25": metrics("baseline_rank"),
         "router_latency_ms": {"p50": round(statistics.median(lat), 1),
                               "max": round(max(lat), 1)},
+        "recall_expected": round(statistics.mean(x["recall"] for x in rows), 3),  # share of all expected resources returned
         "avg_selected": round(statistics.mean(x["selected"] for x in rows), 2),
         "avg_est_tokens": round(statistics.mean(x["est_tokens"] for x in rows)),
         "misses": [{"task": x["task"], "top": x["top"]} for x in rows if x["rank"] != 1],

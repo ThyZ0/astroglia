@@ -24,6 +24,7 @@ class Config:
     weights: dict = field(default_factory=lambda: dict(DEFAULT_WEIGHTS))
     redundancy_threshold: float = 0.35
     min_score: float = 0.25
+    relative_cut: float = 0.6         # drop candidates scoring below this fraction of the best one
     half_life_days: float = 90.0
     max_per_kind: int = 3
     project_roots: list[str] = field(default_factory=list)
@@ -42,7 +43,7 @@ def load(home: str | os.PathLike | None = None) -> Config:
     f = h / "config.toml"
     if f.exists():
         data = tomllib.loads(f.read_text(encoding="utf-8"))
-        for key in ("redundancy_threshold", "min_score", "half_life_days", "max_per_kind", "project_roots",
+        for key in ("redundancy_threshold", "min_score", "relative_cut", "half_life_days", "max_per_kind", "project_roots",
                     "consolidate", "consolidate_min_files"):
             if key in data:
                 setattr(cfg, key, data[key])

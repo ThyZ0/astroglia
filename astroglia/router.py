@@ -73,13 +73,15 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
         similar.setdefault(e["dst"], {})[e["src"]] = e["confidence"]
 
     chosen, per_kind, used = [], {}, 0
+    floor = max(cfg.min_score, (cands[0][0] if cands else 0) * cfg.relative_cut)
     for score, n, parts in cands:
         why = {k: round(v, 3) for k, v in parts.items()}
         entry = {"id": n["id"], "kind": n["kind"], "title": n["title"], "score": round(score, 3)}
         if len(chosen) >= limit:
             result["rejected"].append({**entry, "reason": "limit reached"}); continue
-        if score < cfg.min_score:
-            result["rejected"].append({**entry, "reason": f"score below min_score {cfg.min_score}"}); continue
+        if score < floor:
+            why_cut = f"score below min_score {cfg.min_score}" if floor == cfg.min_score else                 f"far below the best match (< {cfg.relative_cut:.0%} of {cands[0][0]:.2f})"
+            result["rejected"].append({**entry, "reason": why_cut}); continue
         dup = next((c for c in chosen if similar.get(n["id"], {}).get(c["id"], 0) >= cfg.redundancy_threshold), None)
         if dup:
             result["rejected"].append({**entry, "reason": f"redundant with {dup['id']} "
