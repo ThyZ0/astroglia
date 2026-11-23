@@ -190,3 +190,9 @@ def test_value_report_counts_what_was_served(env):
     assert m["memories_saved"] == 2 and m["duplicates_flagged"] == 1 and m["briefs_served"] == 1
     assert v["estimated"]["tokens_of_rereading_avoided_by_briefs"] == 1000 and "formula" in v["estimated"]
     assert metrics.value(s, days=1)["measured"]["routings"] == 2
+
+
+def test_consolidation_counts_cli_saves(env):
+    t = _transcript(env["tmp"], [("Edit", {"file_path": "a.py"}), ("Edit", {"file_path": "b.py"}),
+                                 ("Bash", {"command": ".venv/Scripts/astroglia remember \"x\" \"y\" --file a.py"})])
+    assert hooks.stop({"transcript_path": t, "session_id": "s6"}, env["cfg"]) is None

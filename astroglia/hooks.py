@@ -118,8 +118,9 @@ def session_activity(transcript: str | Path) -> tuple[list[str], bool]:
                     f = (part.get("input") or {}).get("file_path") or (part.get("input") or {}).get("notebook_path")
                     if f and f not in files:
                         files.append(f)
-                elif name.endswith("astroglia__remember"):
-                    remembered = True
+                elif name.endswith("astroglia__remember") or (
+                        name in ("Bash", "PowerShell") and "astroglia remember" in str((part.get("input") or {}).get("command", ""))):
+                    remembered = True  # saved through MCP or through the CLI
     return files, remembered
 
 
