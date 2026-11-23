@@ -92,6 +92,32 @@ There is no separate cache format: understanding is stored as ordinary entries (
 
 Honest reading: on capability routing, Astroglia's scoring is at best slightly ahead of BM25. Its value is elsewhere: redundancy filtering, explanations, staleness, project cards, experiences. Remaining misses are synonyms. That is the trigger for optional local embeddings.
 
+### Closing the memory loop (v0.6)
+
+The v0.5 audit measured the core problem on real usage: in two hours, **one** memory entry was created, by hand. A memory that does not fill itself has no value. Two mechanisms, both deterministic:
+
+- **Project briefs** (`brief.py`). Instead of waiting for the agent to describe a project, Astroglia writes the facts it can prove from files: manifests and their scripts and dependencies, languages, layout, entry points and tests (also next to each manifest, for apps in subfolders), the README's opening, git's most-changed files. The brief is a `knowledge:brief:<project>` entry tied to its source hashes, rebuilt only when they change (or after 7 days for layout and git drift). The session hook builds briefs under a 3 s budget, current project first, and puts the current project's brief summary in the manifest.
+- **Consolidation** (`hooks.stop`). The Stop hook reads tool names and file paths from the session transcript (17 MB parsed in 0.2 s). If the session edited at least `consolidate_min_files` files and never called `remember`, it returns `decision: block` once, asking Claude to save what is reusable or simply finish. It never fires twice in a session (`stop_hook_active` and a per-session marker).
+
+`remember` also reports similar existing entries (term overlap >= 0.4), so the agent updates instead of duplicating.
+
+### Value accounting (`metrics.py`)
+
+Counted from the event log: routings and those with results, memory entries and briefs served (by route, `get`, or the session manifest), stale warnings, project cards served, memories saved, duplicates flagged, consolidations asked, feedback. One estimate, always shown with its formula: tokens of re-reading avoided by served briefs (bytes of the files a brief summarises / 4).
+
+### Performance (measured, `bench/load.py`)
+
+| entries | route p50 | freshness check, 500 files (cold / unchanged) | UI graph payload |
+|---|---|---|---|
+| 1,500 | 9 ms | 1,156 / 71 ms | 16 ms, 471 KB |
+| 20,500 | 43 ms | 1,329 / 48 ms | 553 ms, 7.7 MB (0.6 MB gzipped) |
+
+The unchanged-files check was 989 ms before: each entry committed its own "verified" update. Now: hash cache keyed by size and mtime (schema v2) and one transaction. Galaxy rendering, headless Chrome: 5k stars at ~129 fps, 20k stars and 40k relations at ~70 fps.
+
+### Routing cut (measured)
+
+`relative_cut` drops candidates below a fraction of the best score. On `bench/local-tasks.json`: 0.6 keeps hit@1/hit@3 and the recall of expected resources unchanged (0.788) while cutting results from 7.0 to 4.05 per task; 0.7 loses recall (0.742). Default: 0.6.
+
 ## 3. Claude Code integration
 
 - MCP does not run anything at session start, so the wake-up uses the official `SessionStart` hook with `additionalContext` (WAKE → SYNC → ORIENT → READY). Measured: ~0.6 s, ~100 tokens, on 72 capabilities.

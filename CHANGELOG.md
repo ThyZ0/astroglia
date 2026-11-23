@@ -2,6 +2,25 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [0.6.0] - unreleased
+Renamed from NEXUS to **Astroglia** (the old name collides with 134k GitHub repositories, PyPI/npm packages and Sonatype Nexus).
+### Added
+- Project briefs: deterministic summary of manifests, scripts, layout, entry points, tests, README and git hot files; stale-aware, rebuilt only when sources change; the current project's brief is part of the session manifest.
+- Consolidation: a Stop hook asks once per session, after real work, to save reusable knowledge (`consolidate = false` disables it).
+- `remember` reports similar existing entries (duplicates); `astroglia value` / `/api/value`: what was served (measured) vs saved (estimated).
+- Galaxy: relation types by line pattern, direction arrows and labels on selection, path tracing (shift+click), family filters, 2-step expansion, first-use guide, "Show source" in the file manager.
+- Evidence-based bridges between hemispheres: an indexing tool is `used_in` the projects it indexes.
+- `bench/load.py` (1.5k to 20.5k entries), recall metric in `astroglia bench`, demo dataset for screenshots.
+### Changed
+- MCP tools have short names (`mcp__astroglia__route`, `remember`, `project`...).
+- Router drops candidates below 60% of the best score: 7.0 -> 4.0 results per task, same accuracy and recall.
+- Navigation grouped by intent; new logo.
+### Fixed
+- A deleted source file kept an entry looking valid.
+### Performance
+- Freshness check of 500 unchanged entries: 989 ms -> 71 ms (hash cache, schema v2, one transaction).
+- API responses gzipped (galaxy payload at 20k entries: 7.8 MB -> 0.6 MB).
+
 ## [0.5.0] - unreleased
 ### Added
 - Galaxy keyboard control (arrows rotate, +/- zoom, Esc closes the panel); "skip to content" link.
