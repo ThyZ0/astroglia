@@ -113,7 +113,7 @@ views.galaxy = async () => {
   let L = layout(g.nodes), W = 0, H = 0, dpr = 1;
   const cam = { yaw: -0.5, pitch: 0.18, zoom: 1, auto: !reduceMotion };
   let hover = null, selected = null, highlight = null, lastMove = 0, proj = [];
-  let focusSet = null, path = null;  // neighbourhood of the selection / nodes+edges of a traced path
+  let focusSet = null, path = null, active = null, camAnim = null;  // neighbourhood of the selection / nodes+edges of a traced path
   const ekey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
   const visible = (n) => n && !hidden.has(familyOf(n.kind));
   const births = new Map(), flares = new Map(), pulses = [], ringsAt = [];
@@ -156,12 +156,30 @@ views.galaxy = async () => {
     }
   }
 
+  function halos() {  // one soft nebula per real cluster (plugin or project), sized by its member count
+    for (const [key, members] of L.groups) {
+      if (members.length < 3) continue;
+      const fam = familyOf(members[0].kind); if (hidden.has(fam)) continue;
+      const c = project(L.centers.get(key)), k = Math.min(W, H) * 0.36 * cam.zoom * c[3];
+      const r = Math.min(0.2, 0.035 + Math.sqrt(members.length) * 0.022) * 2.4 * k;
+      const g = ctx.createRadialGradient(c[0], c[1], 0, c[0], c[1], r);
+      g.addColorStop(0, FAMILY[fam] + (active ? "0d" : "1c")); g.addColorStop(1, FAMILY[fam] + "00");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c[0], c[1], r, 0, 7); ctx.fill();
+    }
+  }
+
   function draw(t) {
     ctx.clearRect(0, 0, W, H);
+    if (camAnim) {  // ease the camera toward the selected star
+      const k = Math.min(1, (t - camAnim.t0) / 700), e = 1 - Math.pow(1 - k, 3);
+      cam.yaw = camAnim.yaw0 + (camAnim.yaw1 - camAnim.yaw0) * e; cam.zoom = camAnim.z0 + (camAnim.z1 - camAnim.z0) * e;
+      if (k >= 1) camAnim = null;
+    }
     outline();
     const P = new Map(g.nodes.map((n) => [n.id, project(L.pos.get(n.id))]));
     const focus = selected || hover;
-    const active = path ? path.nodes : selected ? focusSet : highlight;
+    active = path ? path.nodes : selected ? focusSet : highlight;
+    halos();
     const labels = [];
     // relations
     for (const e of g.edges) {
@@ -218,20 +236,23 @@ views.galaxy = async () => {
     }
     // labels: projects and plugins on the near side, plus the focused star
     ctx.font = "11px Inter, Segoe UI, system-ui, sans-serif"; ctx.textAlign = "center";
+    const boxes = [];  // shared by relation labels and star names: nothing is drawn over something else
+    const overlaps = (b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
     for (const [x, y, text] of labels) {
-      const w = ctx.measureText(text).width + 10;
+      const w = ctx.measureText(text).width + 10, box = [x - w / 2, y - 8, x + w / 2, y + 7];
+      if (overlaps(box)) continue;
+      boxes.push(box);
       ctx.fillStyle = "rgba(11, 17, 32, 0.88)"; ctx.fillRect(x - w / 2, y - 8, w, 15);
       ctx.fillStyle = "#a9b4c9"; ctx.fillText(text, x, y + 3);
     }
-    ctx.font = "12px Inter, Segoe UI, system-ui, sans-serif";
-    const boxes = [];  // nearest first; a label that would overlap an already placed one is skipped
+    ctx.font = "12px Inter, Segoe UI, system-ui, sans-serif";  // nearest first; a label that would overlap an already placed one is skipped
     const cands = [...proj].reverse().filter(([n, p]) => visible(n) && ((focus && n.id === focus.id) || (path && path.nodes.has(n.id))
       || (selected && focusSet.has(n.id)) || ((n.kind === "project" || n.kind === "plugin") && p[2] < 0.15 && !active)));
     if (focus) cands.sort(([a], [b]) => (b.id === focus.id) - (a.id === focus.id));
     for (const [n, p] of cands) {
       const text = n.title.length > 34 ? n.title.slice(0, 33) + "…" : n.title, w = ctx.measureText(text).width, y = p[1] - 12 * p[3] * cam.zoom - 6;
       const box = [p[0] - w / 2 - 4, y - 12, p[0] + w / 2 + 4, y + 3];
-      if (boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+      if (overlaps(box)) continue;
       boxes.push(box);
       ctx.fillStyle = focus && n.id === focus.id ? "#e8edf7" : "rgba(169, 180, 201, 0.85)";
       ctx.fillText(text, p[0], y);
@@ -250,7 +271,7 @@ views.galaxy = async () => {
 
   let raf = 0, last = now();
   const loop = (t) => {
-    if (cam.auto && t - lastMove > 2500) cam.yaw += (t - last) * 0.00005;
+    if (cam.auto && !selected && !camAnim && t - lastMove > 2500) cam.yaw += (t - last) * 0.00005;
     last = t; draw(t); raf = requestAnimationFrame(loop);
   };
 
@@ -319,6 +340,9 @@ views.galaxy = async () => {
     selected = n || null; path = null;
     if (!n) { side.hidden = true; focusSet = null; return; }
     focusSet = new Set([n.id, ...(g.adj.get(n.id) || []).map(([o]) => o)]);
+    const [px, , pz] = L.pos.get(n.id);  // turn the brain so the star faces the viewer
+    let yaw1 = Math.atan2(px, pz) + Math.PI; while (yaw1 - cam.yaw > Math.PI) yaw1 -= 2 * Math.PI; while (cam.yaw - yaw1 > Math.PI) yaw1 += 2 * Math.PI;
+    if (reduceMotion) { cam.yaw = yaw1; } else camAnim = { t0: now(), yaw0: cam.yaw, yaw1, z0: cam.zoom, z1: Math.max(cam.zoom, 1.25) };
     side.hidden = false;
     const panel = h("div", {});
     const expand = h("button.btn.ghost.small", { type: "button", onclick: () => {
@@ -373,6 +397,12 @@ views.galaxy = async () => {
   }
 
   resize(); addEventListener("resize", resize);
+  if (params().ids) {  // replay: the resources a routing mobilised (from the Context Monitor)
+    const ids = params().ids.split(",").filter((i) => g.byId.has(i));
+    highlight = new Set(ids);
+    setTimeout(() => { const t = now(); ringsAt.push(t); ids.forEach((id, i) => pulses.push({ id, t0: t + i * 180 })); }, 400);
+    ticker.textContent = `Replaying a routing: ${ids.length} resource(s) selected · ` + ids.map((i) => g.byId.get(i).title).join(", ");
+  }
   if (reduceMotion) { draw(now()); setInterval(() => !stop && draw(now()), 1000); } else raf = requestAnimationFrame(loop);
   poll();
   viewCleanup = () => { stop = true; cancelAnimationFrame(raf); removeEventListener("resize", resize); $tip.hidden = true; };
@@ -459,17 +489,71 @@ views.clusters = async () => {
         svg)));
 };
 
-// ---------- Voids: where the brain is weak ----------
+// ---------- Health: score, suggestions, overlaps, usage, weak zones ----------
 views.voids = async () => {
-  setView(h("h1", {}, "Voids"), loading());
-  const vs = await api("/api/voids");
-  const total = vs.reduce((a, v) => a + v.items.length, 0);
-  setView(h("h1", {}, "Voids"),
-    h("p.lede", {}, `The dark zones of the brain: ${total} finding(s). Each comes from an explicit rule, shown under its title.`),
+  setView(h("h1", {}, "Health"), loading());
+  const [r, vs] = await Promise.all([api("/api/insights"), api("/api/voids")]);
+  const pct = (x) => Math.round(x * 100) + "%";
+  const bars = h("div.why", {}, Object.entries(r.parts).flatMap(([k, p]) => {
+    const f = h("div.fill"); f.style.width = pct(p.value);
+    return [h("span.muted", { title: p.means }, k), h("div.track", { title: p.means }, f), h("span.num", {}, pct(p.value))];
+  }));
+  const act = (label, fn, cls = "btn.ghost.small") => h(`button.${cls}`, { type: "button", onclick: async (e) => {
+    e.target.disabled = true; try { await fn(); views.voids(); } catch (err) { toast(err.message, true); e.target.disabled = false; } } }, label);
+  const link = (x) => h("a", { href: `#/neural?id=${encodeURIComponent(x.id)}` }, x.title);
+  setView(h("h1", {}, "Health"),
+    h("p.lede", {}, "How trustworthy and well organised Astroglia's knowledge is, what to tidy, and what Claude actually reuses. Every item comes from an explicit rule."),
+    h("div.grid.two", {},
+      h("div.card", {}, h("div.row", {}, h("div.score", { "aria-label": `Health score ${r.score} out of 100` }, String(r.score)),
+        h("div", {}, h("h2", {}, "Health score"), h("p.small.muted", {}, "Average of four ratios. Hover a bar for its definition."))), bars),
+      h("div.card", {}, h("h2", {}, `Most reused (${r.routings} routings so far)`),
+        r.most_served.length ? h("ul.list.stack", {}, r.most_served.map((x) => h("li.row.between", {}, link(x), h("span.small.muted", {}, `${x.times}×  ${x.kind}`))))
+          : h("p.empty", {}, "Nothing served yet."))),
+    h("div.grid.two", {},
+      h("div.card", {}, h("h2", {}, `Suggested relations (${r.missing_relations.length})`),
+        r.missing_relations.length ? r.missing_relations.slice(0, 12).map((m) => h("div.pick", {}, h("p.small", {}, m.why),
+          h("div.row", {}, act("Link them", () => api("/api/link", { src: m.src.id, dst: m.dst.id, type: m.type }), "btn.small"),
+            act("Ignore", () => api("/api/dismiss", { key: m.key }))))) : h("p.empty", {}, "No missing relation found.")),
+      h("div.card", {}, h("h2", {}, `Overlapping memory (${r.overlaps.length})`),
+        r.overlaps.length ? r.overlaps.slice(0, 10).map((o) => h("div.pick", {}, h("p.small", {}, link(o.a), " ≈ ", link(o.b), h("span.muted", {}, ` (similarity ${o.similarity})`)),
+          h("p.small.muted", {}, o.advice),
+          h("div.row", {}, act("Merge 2nd into 1st", () => api("/api/merge", { src: o.b.id, dst: o.a.id }), "btn.small"),
+            act("Not the same", () => api("/api/dismiss", { key: o.key }))))) : h("p.empty", {}, "No overlapping entries."))),
+    h("div.card", {}, h("h2", {}, "Capabilities never selected"),
+      r.unused_note ? h("p.small.muted", {}, r.unused_note) : r.unused_capabilities.length
+        ? h("p.small", {}, r.unused_capabilities.map((x) => x.title).join(" · ")) : h("p.empty", {}, "Every capability has been used at least once.")),
+    h("h2", {}, "Weak zones"),
     h("div.grid.voids", {}, vs.map((v) => h("div.card", {},
       h("div.row.between", {}, h("h3", {}, v.label), h("span.chip" + (v.items.length ? ".status-stale" : ".status-active"), {}, v.items.length ? `⚠ ${v.items.length}` : "● none")),
       h("p.small.muted", {}, v.rule),
       v.items.length ? h("ul.list", {}, v.items.slice(0, 8).map((i) => h("li", {}, h("a", { href: `#/neural?id=${encodeURIComponent(i.id)}` }, i.title), " ", h("span.small.muted", {}, i.kind.replace("_", " ")))),
         v.items.length > 8 ? h("li.small.muted", {}, `+${v.items.length - 8} more`) : null) : null,
       v.items.length ? h("a.btn.ghost.small", { href: `#/galaxy?voids=${v.key}` }, "Show in galaxy") : null))));
+};
+
+// ---------- Timeline: what changed, day by day ----------
+views.timeline = async () => {
+  setView(h("h1", {}, "Timeline"), loading());
+  const ev = await api("/api/timeline?days=60");
+  const LABEL = { "memory.created": ["✚", "Learned"], "memory.updated": ["✎", "Changed"], "memory.stale": ["⚠", "Went stale"],
+    "memory.revalidated": ["✓", "Re-validated"], "memory.merged": ["⇢", "Merged"], "consolidate.asked": ["◷", "Asked to save"],
+    "feedback": ["★", "Feedback"], "sync.capabilities": ["◇", "Capabilities changed"], "sync.providers": ["◎", "Projects changed"] };
+  const text = (e) => {
+    const p = e.payload;
+    if (e.kind.startsWith("memory.")) return p.title || p.id || p.src || "";
+    if (e.kind === "sync.capabilities") return [p.new_ids?.length ? `new: ${p.new_ids.map(short).join(", ")}` : "", p.missing ? `${p.missing} gone` : ""].filter(Boolean).join(" · ");
+    if (e.kind === "sync.providers") return [(p.new || []).length ? `new: ${p.new.map(short).join(", ")}` : "", (p.briefs_built || []).length ? `briefs rebuilt: ${p.briefs_built.map(short).join(", ")}` : "", (p.missing || []).length ? `gone: ${p.missing.map(short).join(", ")}` : ""].filter(Boolean).join(" · ");
+    if (e.kind === "feedback") return `${p.useful ? "useful" : "not useful"}: ${(p.ids || []).map(short).join(", ")}`;
+    if (e.kind === "consolidate.asked") return `${p.files} files edited in the session`;
+    return "";
+  };
+  const days = new Map();
+  for (const e of ev) { const d = e.ts.slice(0, 10); (days.get(d) || days.set(d, []).get(d)).push(e); }
+  setView(h("h1", {}, "Timeline"),
+    h("p.lede", {}, "How Astroglia's knowledge evolved: what was learned, what changed, what went stale and what was re-validated. Answers “what changed since last time?”."),
+    days.size ? [...days].map(([d, es]) => h("div.card", {}, h("h2", {}, new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })),
+      es.map((e) => { const [icon, label] = LABEL[e.kind] || ["•", e.kind]; const id = e.payload.id || e.payload.dst;
+        return h("div.event", {}, h("span.muted", {}, new Date(e.ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })),
+          h("span", {}, `${icon} ${label}`), id ? h("a", { href: `#/neural?id=${encodeURIComponent(id)}` }, text(e)) : h("span", {}, text(e))); })))
+      : h("p.empty", {}, "Nothing changed in the last 60 days."));
 };

@@ -217,3 +217,5 @@ pre.body-text { margin: 6px 0 0; max-height: 240px; overflow: auto; }
 .galaxy-side dl { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; margin: 12px 0; font-size: 13px; }
 .galaxy-side dt { color: var(--text-muted); }
 .galaxy-side dd { margin: 0; min-width: 0; }
+
+.score { font-size: 46px; font-weight: 650; letter-spacing: -.03em; color: var(--text-primary); min-width: 84px; font-variant-numeric: tabular-nums; }

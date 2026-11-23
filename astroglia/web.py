@@ -86,6 +86,9 @@ def timeline(store: Store, days: int = 30) -> list[dict]:
         p = json.loads(r["payload"])
         if r["kind"].startswith("sync.") and not (p.get("new") or p.get("missing") or p.get("briefs_built")):
             continue  # quiet syncs are noise
+        if r["kind"].startswith("memory.") and not p.get("title"):
+            n = store.get(p.get("id") or p.get("dst") or "")
+            p["title"] = n["title"] if n else p.get("id")  # stale/revalidated events only carry the id
         out.append({"id": r["id"], "ts": r["ts"], "kind": r["kind"], "payload": p})
     return out
 

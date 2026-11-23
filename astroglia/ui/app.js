@@ -243,7 +243,8 @@ function routeResult(r) {
         h("button.btn.ghost.small", { type: "button", onclick: (e) => feedback([s.id], true, e.target) }, "Useful"),
         h("button.btn.ghost.small", { type: "button", onclick: (e) => feedback([s.id], false, e.target) }, "Not useful")))));
   return h("div.grid.split", {},
-    h("div.stack", {}, h("h2", {}, `Selected (${r.selected.length}) · ~${r.estimated_tokens}/${r.budget} tokens (estimate)`),
+    h("div.stack", {}, h("div.row.between", {}, h("h2", {}, `Selected (${r.selected.length}) · ~${r.estimated_tokens}/${r.budget} tokens (estimate)`),
+      r.selected.length ? h("a.btn.ghost.small", { href: `#/galaxy?ids=${r.selected.map((s) => encodeURIComponent(s.id)).join(",")}` }, "Show in galaxy") : null),
       picks.length ? picks : h("p.empty", {}, "Nothing relevant enough. Astroglia returns nothing rather than noise.")),
     h("div.card", {}, h("h2", {}, `Rejected (${r.rejected.length})`),
       r.rejected.length ? r.rejected.map((x) => h("div.reject", {}, h("span", {}, x.title), h("span.mono.muted", {}, String(x.score)),
