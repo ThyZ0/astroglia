@@ -135,6 +135,11 @@ def discover_projects(cfg: Config, store: Store) -> tuple[list[dict], list[tuple
     by_root = {str(Path(c["root"]).resolve()).lower(): c for c in cortex if c["root"]}
     nodes, edges = [], []
     roots = candidate_roots(cfg, cortex)
+    # Bridges between the hemispheres, from facts only: the tool that indexed a project is "used_in" it.
+    tools = {}
+    for n in store.nodes(status="active"):
+        if n["kind"] in ("mcp_server", "skill", "plugin") and n["title"].lower() in ("cortex", "graphify"):
+            tools.setdefault(n["title"].lower(), []).append(n["id"])
     wanted = {r: (by_root.get(str(r.resolve()).lower()) or {}).get("name") or r.name for r in roots}
 
     def owns(r: Path) -> bool:  # this root already holds the id from a previous sync: it keeps the plain name
@@ -174,6 +179,8 @@ def discover_projects(cfg: Config, store: Store) -> tuple[list[dict], list[tuple
             facts.append("Has CLAUDE.md.")
         if not providers:
             facts.append("Not indexed by Cortex or Graphify.")
+        for tool in providers:
+            edges += [(tid, pid, "used_in") for tid in tools.get(tool, [])]
         nodes.append({"id": pid, "kind": "project", "title": name, "summary": " ".join(facts), "ref": str(root),
                       "project": name, "tags": " ".join(tags), "confidence": 0.9,
                       "meta": {"root": str(root), "providers": providers, "git_head": git_head(root)}})

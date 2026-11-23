@@ -102,3 +102,14 @@ def test_large_json_is_gzipped_when_accepted(server, env):
     assert len(json.loads(plain)["nodes"]) >= 300 and len(body) < len(plain) / 3
     code, body = server("/api/graph")  # clients that do not ask for gzip get plain JSON
     assert json.loads(body)["nodes"]
+
+
+def test_reveal_only_opens_recorded_existing_paths(server, env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(web.subprocess, "Popen", lambda args: calls.append(args))
+    f = env["tmp"] / "note.md"; f.write_text("x", encoding="utf-8")
+    env["store"].upsert({"id": "knowledge:x", "kind": "knowledge", "title": "x", "source": "test", "ref": str(f)})
+    assert server("/api/reveal", {"id": "knowledge:x"})[0] == 200 and str(f) in calls[0]
+    assert server("/api/reveal", {"id": "knowledge:unknown"})[0] == 404
+    f.unlink()
+    assert server("/api/reveal", {"id": "knowledge:x"})[0] == 404 and len(calls) == 1

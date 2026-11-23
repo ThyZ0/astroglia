@@ -9,6 +9,8 @@ from __future__ import annotations
 import gzip
 import json
 import secrets
+import subprocess
+import sys
 import webbrowser
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -101,6 +103,16 @@ def voids(store: Store) -> list[dict]:
     return [{"key": k, "label": l, "rule": r, "items": pick(ns)} for k, l, r, ns in groups]
 
 
+def reveal(target: Path) -> None:
+    """Show a file or folder in the OS file manager. Highlights it, never opens or runs it."""
+    if sys.platform == "win32":
+        subprocess.Popen(["explorer", "/select,", str(target)] if target.is_file() else ["explorer", str(target)])
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(target)])
+    else:
+        subprocess.Popen(["xdg-open", str(target if target.is_dir() else target.parent)])
+
+
 def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body: dict):
     one = lambda k, d=None: (q.get(k) or [d])[0]
     if method == "GET":
@@ -136,6 +148,13 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
         if path == "/api/edge-types":
             return sorted(EDGE_TYPES)
     if method == "POST":
+        if path == "/api/reveal":
+            n = store.get(str(body.get("id")))
+            ref = n and (n["ref"] or n["meta"].get("root"))
+            if not ref or not Path(ref).exists():  # only paths Astroglia recorded itself, and only if still on disk
+                return 404, {"error": "This entry has no file or folder on disk."}
+            reveal(Path(ref))
+            return {"revealed": ref}
         if path == "/api/route":
             r = router.route(store, cfg, str(body.get("task", "")), project=body.get("project") or None,
                              budget=int(body.get("budget") or 1200))

@@ -10,6 +10,10 @@ const MEMORY = new Set(["experience", "decision", "knowledge"]);
 const familyOf = (k) => (k === "project" ? "project" : MEMORY.has(k) ? "memory" : "capability");
 const clusterKey = (n) => familyOf(n.kind) === "capability" ? `cap:${n.origin || "user"}` : `proj:${n.project || "general"}`;
 const clusterName = (key) => key.replace(/^cap:/, "").replace(/^proj:/, "") + (key.startsWith("cap:") ? " · capabilities" : "");
+// Relation types are told apart by line pattern, not colour (colour already encodes node families).
+const EDGE_STYLE = { belongs_to: { dash: [1, 4], alpha: 0.06, label: "belongs to" }, similar_to: { dash: [6, 4], alpha: 0.22, label: "similar to" },
+  related_to: { dash: [], alpha: 0.16, label: "related to" }, used_in: { dash: [], alpha: 0.32, label: "used in" } };
+const edgeStyle = (t) => EDGE_STYLE[t] || { dash: [], alpha: 0.18, label: t.replace(/_/g, " ") };
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const params = () => Object.fromEntries(new URLSearchParams((location.hash.split("?")[1] || "")));
 
@@ -74,15 +78,34 @@ views.galaxy = async () => {
   const voidSel = h("select", { "aria-label": "Highlight weak zones" }, h("option", { value: "" }, "Weak zones: off"));
   const side = h("aside.galaxy-side", { hidden: true });
   const ticker = h("div.ticker", { "aria-live": "polite" }, "Live: waiting for Astroglia operations…");
-  const legend = h("div.legend", {}, Object.entries(FAMILY).map(([f, c]) => {
+  const hidden = new Set();
+  const legend = h("div.legend", {}, h("div.legend-title", {}, "Stars (click to show or hide)"), Object.entries(FAMILY).map(([f, c]) => {
     const dot = h("span.swatch"); dot.style.background = c;
-    return h("div.row", {}, dot, FAMILY_LABEL[f]);
-  }), h("div.small.muted", {}, "◯ plugin   ◇ MCP server   ● other   ring = new in last 24 h"));
+    const b = h("button.legend-item", { type: "button", "aria-pressed": "true", onclick: () => {
+      hidden.has(f) ? hidden.delete(f) : hidden.add(f); b.setAttribute("aria-pressed", String(!hidden.has(f))); if (reduceMotion) draw(now());
+    } }, dot, FAMILY_LABEL[f]);
+    return b;
+  }), h("div.small.muted", {}, "◯ plugin · ◇ MCP server · ● other · faint ring = new today"),
+    h("div.legend-title", {}, "Relations"),
+    Object.values(EDGE_STYLE).map((st) => {
+      const line = h("svg", { viewBox: "0 0 28 6", width: 28, height: 6, "aria-hidden": "true" });
+      line.append(h("line", { x1: 1, y1: 3, x2: 27, y2: 3, class: "legend-line", "stroke-dasharray": st.dash.join(" ") || null }));
+      return h("div.row.small", {}, line, st.label);
+    }), h("div.small.muted", {}, "Select a star to see its relations with direction and type."));
+  const onboard = h("div.onboard", { role: "dialog", "aria-label": "How to read the galaxy", hidden: !!localStorage.getItem("astroglia-onboarded") },
+    h("h2", {}, "How to read the galaxy"),
+    h("ul", {}, h("li", {}, "Each star is something Astroglia knows: a skill or tool (left hemisphere), a memory or a project (right)."),
+      h("li", {}, "Each line is a stored relation. Select a star to see its relations, their type and their direction."),
+      h("li", {}, "Shift+click a second star to trace the path between the two."),
+      h("li", {}, "Pulses appear only when Claude or you actually use Astroglia: the ticker at the bottom names the event."),
+      h("li", {}, "Drag to rotate, scroll or +/− to zoom, arrows also rotate, Esc clears the selection.")),
+    h("button.btn.primary", { type: "button", onclick: () => { localStorage.setItem("astroglia-onboarded", "1"); onboard.hidden = true; } }, "Got it"));
+  const helpBtn = h("button.btn.ghost.small", { type: "button", "aria-label": "How to read the galaxy", onclick: () => { onboard.hidden = false; } }, "?");
   setView(h("div.galaxy-wrap", {}, canvas,
     h("div.galaxy-top", {}, h("div", {}, h("h1", {}, "Galaxy"), h("p.muted.small", {},
       `${g.nodes.length} stars · ${g.edges.length} relations · left: abilities, right: knowledge`)),
-      h("div.row", {}, search, voidSel, rotateBtn)),
-    legend, side, ticker));
+      h("div.row", {}, search, voidSel, rotateBtn, helpBtn)),
+    legend, side, ticker, onboard));
   api("/api/voids").then((vs) => { for (const v of vs) if (v.items.length) voidSel.append(h("option", { value: v.key }, `${v.label} (${v.items.length})`));
     voidSel.voids = vs; if (params().voids) { voidSel.value = params().voids; voidSel.dispatchEvent(new Event("input")); } });
 
@@ -90,6 +113,9 @@ views.galaxy = async () => {
   let L = layout(g.nodes), W = 0, H = 0, dpr = 1;
   const cam = { yaw: -0.5, pitch: 0.18, zoom: 1, auto: !reduceMotion };
   let hover = null, selected = null, highlight = null, lastMove = 0, proj = [];
+  let focusSet = null, path = null;  // neighbourhood of the selection / nodes+edges of a traced path
+  const ekey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
+  const visible = (n) => n && !hidden.has(familyOf(n.kind));
   const births = new Map(), flares = new Map(), pulses = [], ringsAt = [];
   const now = () => performance.now();
 
@@ -135,15 +161,28 @@ views.galaxy = async () => {
     outline();
     const P = new Map(g.nodes.map((n) => [n.id, project(L.pos.get(n.id))]));
     const focus = selected || hover;
+    const active = path ? path.nodes : selected ? focusSet : highlight;
+    const labels = [];
     // relations
     for (const e of g.edges) {
       const a = P.get(e.src), b = P.get(e.dst); if (!a || !b) continue;
-      const on = focus && (e.src === focus.id || e.dst === focus.id);
-      const dim = highlight && !(highlight.has(e.src) && highlight.has(e.dst));
-      ctx.strokeStyle = on ? "rgba(56, 189, 248, 0.75)" : `rgba(170, 190, 230, ${dim ? 0.015 : e.type === "belongs_to" ? 0.05 : 0.14})`;
-      ctx.lineWidth = on ? 1.4 : 1;
+      if (!visible(g.byId.get(e.src)) || !visible(g.byId.get(e.dst))) continue;
+      const st = edgeStyle(e.type), onPath = path && path.edges.has(ekey(e.src, e.dst));
+      const on = !path && focus && (e.src === focus.id || e.dst === focus.id);
+      const dim = active && !onPath && !on && !(active.has(e.src) && active.has(e.dst));
+      ctx.setLineDash(st.dash);
+      ctx.strokeStyle = onPath ? "rgba(255, 255, 255, 0.92)" : on ? "rgba(56, 189, 248, 0.85)" : `rgba(170, 190, 230, ${dim ? 0.012 : st.alpha})`;
+      ctx.lineWidth = onPath ? 2.4 : on ? 1.6 : 1;
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      if (onPath || (on && selected)) {  // direction arrow at the target end + type label
+        const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), tx = b[0] - Math.cos(ang) * 10, ty = b[1] - Math.sin(ang) * 10;
+        ctx.setLineDash([]); ctx.fillStyle = ctx.strokeStyle; ctx.beginPath();
+        ctx.moveTo(tx, ty); ctx.lineTo(tx - Math.cos(ang - 0.45) * 7, ty - Math.sin(ang - 0.45) * 7);
+        ctx.lineTo(tx - Math.cos(ang + 0.45) * 7, ty - Math.sin(ang + 0.45) * 7); ctx.closePath(); ctx.fill();
+        if (labels.length < 40) labels.push([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, st.label]);
+      }
     }
+    ctx.setLineDash([]);
     // core
     const core = project([0, 0, 0]), cs = 26 * core[3] * cam.zoom;
     ctx.globalAlpha = 0.9; ctx.drawImage(sprite("#7dd3fc"), core[0] - cs, core[1] - cs, cs * 2, cs * 2); ctx.globalAlpha = 1;
@@ -156,13 +195,14 @@ views.galaxy = async () => {
     proj = g.nodes.map((n) => [n, P.get(n.id)]).sort((a, b) => b[1][2] - a[1][2]);
     const day = Date.now() - 864e5;
     for (const [n, p] of proj) {
+      if (!visible(n)) continue;
       const fam = familyOf(n.kind), color = FAMILY[fam];
       const born = births.get(n.id), grow = born ? Math.min(1, (t - born) / 1400) : 1;
       const fl = flares.get(n.id), flare = fl ? Math.max(0, 1 - (t - fl) / 2200) : 0;
       let size = (n.kind === "project" || n.kind === "plugin" ? 7 : MEMORY.has(n.kind) ? 5 : 4) * (1 + Math.log1p(n.uses) * 0.3);
       size *= p[3] * cam.zoom * grow * (1 + flare * 1.6);
       const depth = Math.max(0.35, Math.min(1, 1.1 - p[2] * 0.6));
-      const dim = highlight && !highlight.has(n.id);
+      const dim = active && !active.has(n.id);
       ctx.globalAlpha = dim ? 0.08 : depth;
       const glow = size * 3.2;
       ctx.drawImage(sprite(color), p[0] - glow, p[1] - glow, glow * 2, glow * 2);
@@ -177,9 +217,16 @@ views.galaxy = async () => {
       ctx.globalAlpha = 1;
     }
     // labels: projects and plugins on the near side, plus the focused star
-    ctx.font = "12px Inter, Segoe UI, system-ui, sans-serif"; ctx.textAlign = "center";
+    ctx.font = "11px Inter, Segoe UI, system-ui, sans-serif"; ctx.textAlign = "center";
+    for (const [x, y, text] of labels) {
+      const w = ctx.measureText(text).width + 10;
+      ctx.fillStyle = "rgba(11, 17, 32, 0.88)"; ctx.fillRect(x - w / 2, y - 8, w, 15);
+      ctx.fillStyle = "#a9b4c9"; ctx.fillText(text, x, y + 3);
+    }
+    ctx.font = "12px Inter, Segoe UI, system-ui, sans-serif";
     const boxes = [];  // nearest first; a label that would overlap an already placed one is skipped
-    const cands = [...proj].reverse().filter(([n, p]) => (focus && n.id === focus.id) || ((n.kind === "project" || n.kind === "plugin") && p[2] < 0.15 && !highlight));
+    const cands = [...proj].reverse().filter(([n, p]) => visible(n) && ((focus && n.id === focus.id) || (path && path.nodes.has(n.id))
+      || (selected && focusSet.has(n.id)) || ((n.kind === "project" || n.kind === "plugin") && p[2] < 0.15 && !active)));
     if (focus) cands.sort(([a], [b]) => (b.id === focus.id) - (a.id === focus.id));
     for (const [n, p] of cands) {
       const text = n.title.length > 34 ? n.title.slice(0, 33) + "…" : n.title, w = ctx.measureText(text).width, y = p[1] - 12 * p[3] * cam.zoom - 6;
@@ -220,7 +267,7 @@ views.galaxy = async () => {
       return;
     }
     let best = null, bd = 144;
-    for (const [n, p] of proj) { const d = (p[0] - mx) ** 2 + (p[1] - my) ** 2; if (d < bd) { bd = d; best = n; } }
+    for (const [n, p] of proj) { if (!visible(n)) continue; const d = (p[0] - mx) ** 2 + (p[1] - my) ** 2; if (d < bd) { bd = d; best = n; } }
     hover = best; canvas.style.cursor = best ? "pointer" : "grab";
     if (best) {
       $tip.hidden = false; fill($tip, h("div", {}, best.title), h("div.muted", {}, `${best.kind.replace("_", " ")} · ${best.status}${best.project ? " · " + best.project : ""}`));
@@ -229,12 +276,27 @@ views.galaxy = async () => {
     if (reduceMotion) draw(now());
   });
   canvas.addEventListener("pointerleave", () => { hover = null; $tip.hidden = true; });
-  canvas.addEventListener("pointerup", () => { if (drag && !drag[4]) select(hover); drag = null; });
+  canvas.addEventListener("pointerup", (e) => {
+    if (drag && !drag[4]) (e.shiftKey && selected && hover && hover.id !== selected.id) ? trace(selected, hover) : select(hover);
+    drag = null;
+  });
+  function trace(from, to) {  // shortest path, relations followed in both directions
+    const prev = new Map([[from.id, null]]), queue = [from.id];
+    while (queue.length && !prev.has(to.id)) {
+      const cur = queue.shift();
+      for (const [o] of g.adj.get(cur) || []) if (!prev.has(o)) { prev.set(o, cur); queue.push(o); }
+    }
+    if (!prev.has(to.id)) { path = null; ticker.textContent = `No path between “${from.title}” and “${to.title}”: they are not connected.`; return; }
+    const ids = []; for (let x = to.id; x; x = prev.get(x)) ids.unshift(x);
+    path = { nodes: new Set(ids), edges: new Set(ids.slice(1).map((x, i) => ekey(ids[i], x))) };
+    ticker.textContent = `Path (${ids.length - 1} step${ids.length > 2 ? "s" : ""}): ` + ids.map((x) => g.byId.get(x).title).join(" → ");
+    if (reduceMotion) draw(now());
+  }
   canvas.addEventListener("dblclick", () => hover && (location.hash = `#/neural?id=${encodeURIComponent(hover.id)}`));
   canvas.addEventListener("wheel", (e) => { e.preventDefault(); cam.zoom = Math.max(0.5, Math.min(4, cam.zoom * Math.exp(-e.deltaY * 0.001))); lastMove = now(); if (reduceMotion) draw(now()); }, { passive: false });
   canvas.addEventListener("keydown", (e) => {
     const k = { ArrowLeft: [-0.12, 0, 1], ArrowRight: [0.12, 0, 1], ArrowUp: [0, -0.1, 1], ArrowDown: [0, 0.1, 1], "+": [0, 0, 1.15], "=": [0, 0, 1.15], "-": [0, 0, 1 / 1.15] }[e.key];
-    if (e.key === "Escape") return select(null);
+    if (e.key === "Escape") { path = null; return select(null); }
     if (!k) return;
     e.preventDefault();
     cam.yaw += k[0]; cam.pitch = Math.max(-1.2, Math.min(1.2, cam.pitch + k[1])); cam.zoom = Math.max(0.5, Math.min(4, cam.zoom * k[2]));
@@ -254,13 +316,20 @@ views.galaxy = async () => {
   });
 
   function select(n) {
-    selected = n || null;
-    if (!n) { side.hidden = true; return; }
+    selected = n || null; path = null;
+    if (!n) { side.hidden = true; focusSet = null; return; }
+    focusSet = new Set([n.id, ...(g.adj.get(n.id) || []).map(([o]) => o)]);
     side.hidden = false;
     const panel = h("div", {});
-    fill(side, h("div.row.between", {}, h("strong", {}, "Selected"), h("button.btn.ghost.small", { type: "button", onclick: () => select(null) }, "Close")),
-      h("div.row", {}, h("a.btn.small", { href: `#/neural?id=${encodeURIComponent(n.id)}` }, "Explore relations"),
-        h("a.btn.ghost.small", { href: `#/clusters?key=${encodeURIComponent(clusterKey(n))}` }, "Open cluster")), panel);
+    const expand = h("button.btn.ghost.small", { type: "button", onclick: () => {
+      for (const id of [...focusSet]) for (const [o] of g.adj.get(id) || []) focusSet.add(o);
+      expand.disabled = true; expand.textContent = `${focusSet.size - 1} within 2 steps`; if (reduceMotion) draw(now());
+    } }, "Expand to 2 steps");
+    fill(side, h("div.row.between", {}, h("strong", {}, `${focusSet.size - 1} direct relation(s)`), h("button.btn.ghost.small", { type: "button", onclick: () => select(null) }, "Close")),
+      h("div.row", {}, h("a.btn.small", { href: `#/neural?id=${encodeURIComponent(n.id)}` }, "Explore relations"), expand,
+        h("a.btn.ghost.small", { href: `#/clusters?key=${encodeURIComponent(clusterKey(n))}` }, "Open cluster"),
+        h("button.btn.ghost.small", { type: "button", onclick: () => api("/api/reveal", { id: n.id }).then(() => toast("Opened in your file manager."), (err) => toast(err.message, true)) }, "Show source")),
+      h("p.small.muted", {}, "Shift+click another star to trace the path between them."), panel);
     showNode(panel, n.id);
     if (reduceMotion) draw(now());
   }

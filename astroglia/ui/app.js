@@ -136,7 +136,7 @@ let viewCleanup = null;  // set by views that run loops (galaxy), called when le
 
 views.dashboard = async () => {
   setView(h("h1", {}, "Dashboard"), loading());
-  const [o, events] = await Promise.all([api("/api/overview"), api("/api/events?limit=12")]);
+  const [o, events, val] = await Promise.all([api("/api/overview"), api("/api/events?limit=12"), api("/api/value?days=30")]);
   const k = o.nodes_by_kind, s = o.nodes_by_status, sum = (...ks) => ks.reduce((a, x) => a + (k[x] || 0), 0);
   const caps = sum("plugin", "skill", "command", "agent", "mcp_server", "hook");
   const edges = Object.values(o.edges_by_type).reduce((a, b) => a + b, 0);
@@ -152,6 +152,7 @@ views.dashboard = async () => {
       kpi(edges, "Relations"),
       kpi(s.stale || 0, "Stale entries", s.stale ? "sources changed since recorded" : "all sources unchanged"),
       kpi(o.routes, "Routings", o.avg_selected != null ? `avg ${o.avg_selected} picks · ~${o.avg_est_tokens} tokens (est.)` : "none yet")),
+    valuePanel(val),
     h("div.grid.two", {},
       h("div.card", {}, h("h2", {}, "Activity per day, last 30 days"), columnChart(activity)),
       h("div.card", {}, h("h2", {}, "Entries by kind"),
@@ -167,6 +168,20 @@ views.dashboard = async () => {
         Object.entries(s).map(([st, n]) => h("span", {}, status(st), ` ${n} `)))),
   );
 };
+
+function valuePanel(v) {
+  const m = v.measured;
+  const row = (n, label, hint) => h("div.value-row", { title: hint }, h("strong", {}, String(n)), h("span", {}, label));
+  return h("div.card", {}, h("h2", {}, "What Astroglia did, last 30 days"),
+    h("div.value-grid", {},
+      row(m.briefs_served, "project briefs served", "Each brief replaces re-reading the project's manifests and README"),
+      row(m.memory_served, "memory entries served", "Experiences, decisions and knowledge returned by routing"),
+      row(m.stale_warnings, "stale warnings", "Times Astroglia said an entry's source files changed since it was recorded"),
+      row(m.routings_with_results + " / " + m.routings, "routings with results", "Tasks for which the router found something relevant"),
+      row(m.memories_saved, "memories saved", "New entries; duplicates flagged: " + m.duplicates_flagged),
+      row(m.sessions, "sessions started", "Claude Code sessions that received the wake-up manifest")),
+    h("p.small.muted", {}, `Measured: counted from the local event log. Estimate: about ${v.estimated.tokens_of_rereading_avoided_by_briefs.toLocaleString()} tokens of re-reading avoided by briefs (${v.estimated.formula}).`));
+}
 
 function fillDays(rows, n) {
   const map = new Map(rows), out = [];
@@ -199,13 +214,20 @@ views.context = async () => {
     catch (e) { fill(out, errorBox(e)); }
   };
   const history_ = h("div", {}, loading());
+  const served = h("div", {}, loading());
   setView(
     h("h1", {}, "Context Monitor"),
     h("p.lede", {}, "What the router selected or rejected for each task, and why. These are Astroglia's own operations, not Claude's reasoning."),
     h("form.card.row", { onsubmit: run }, input, h("button.btn.primary", { type: "submit" }, "Route")),
     h("div", {}, out),
-    h("div.card", {}, h("h2", {}, "Recent routings"), history_));
+    h("div.grid.two", {}, h("div.card", {}, h("h2", {}, "Recent routings"), history_),
+      h("div.card", {}, h("h2", {}, "What Claude was served"), served)));
   fill(history_, ...(await routeHistory()));
+  const sv = await api("/api/events?kind=served&limit=30");
+  const how = { wake: "at session start", get: "read with get", project: "project card" };
+  fill(served, sv.length ? sv.map((e) => h("div.event", {}, h("span.muted", {}, fmtDate(e.ts)), h("span", {}, how[e.payload.via] || e.payload.via),
+    h("span", {}, e.payload.kind === "project_card" ? `${short(e.payload.id)}: ${e.payload.valid} valid, ${e.payload.stale} stale` : short(e.payload.id))))
+    : [h("p.empty", {}, "Nothing served yet. Briefs are served when a session starts inside a known project.")]);
 };
 
 function routeResult(r) {

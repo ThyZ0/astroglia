@@ -136,3 +136,10 @@ def test_session_start_puts_current_project_brief_in_manifest(env, monkeypatch):
     write(root / "pyproject.toml", '[project]\nname = "planner"\nrequires-python = ">=3.11"\ndependencies = ["fastapi", "pytest"]\n')
     out = hooks.session_start({"cwd": str(root / "src")}, env["cfg"])
     assert "Project brief" in out and "fastapi" in out
+
+
+def test_indexing_tools_are_bridged_to_the_projects_they_index(env, monkeypatch):
+    root = setup(env, monkeypatch)
+    env["store"].upsert({"id": "skill:x:graphify", "kind": "skill", "title": "graphify", "source": "scan:claude-code"})
+    providers.sync(env["store"], env["cfg"])
+    assert any(e["src"] == "skill:x:graphify" and e["type"] == "used_in" for e in env["store"].edges("project:planner"))
