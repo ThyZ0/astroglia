@@ -17,13 +17,13 @@ def server(env):
     httpd.RequestHandlerClass = web.make_handler(env["store"], env["cfg"], "tok", port)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
 
-    def call(path, body=None, token="tok", host=None):
+    def call(path, body=None, token="tok", host=None, headers=None, raw=False):
         req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method="POST" if body is not None else "GET",
                                      data=json.dumps(body).encode() if body is not None else None,
-                                     headers={"X-Astroglia-Token": token, **({"Host": host} if host else {})})
+                                     headers={"X-Astroglia-Token": token, **({"Host": host} if host else {}), **(headers or {})})
         try:
             with urllib.request.urlopen(req) as r:
-                return r.status, r.read()
+                return (r.status, r.read(), r.headers) if raw else (r.status, r.read())
         except urllib.error.HTTPError as e:
             return e.code, e.read()
     yield call
@@ -90,3 +90,15 @@ def test_graph_voids_and_live_events(server, env):
     s.log("route", task="t", selected=[a["id"]])
     new = json.loads(server(f"/api/events?after={g['last_event']}")[1])
     assert [e["kind"] for e in new][-1] == "route" and all(e["id"] > g["last_event"] for e in new)
+
+
+def test_large_json_is_gzipped_when_accepted(server, env):
+    import gzip as gz
+    for i in range(300):
+        experiences.remember(env["store"], f"entry {i} about caching and websockets", "x" * 80)
+    code, body, headers = server("/api/graph", headers={"Accept-Encoding": "gzip"}, raw=True)
+    assert code == 200 and headers["Content-Encoding"] == "gzip"
+    plain = gz.decompress(body)
+    assert len(json.loads(plain)["nodes"]) >= 300 and len(body) < len(plain) / 3
+    code, body = server("/api/graph")  # clients that do not ask for gzip get plain JSON
+    assert json.loads(body)["nodes"]

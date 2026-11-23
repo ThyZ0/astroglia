@@ -6,6 +6,7 @@ X-Astroglia-Token) and a localhost Host header, so other web pages cannot drive 
 """
 from __future__ import annotations
 
+import gzip
 import json
 import secrets
 import webbrowser
@@ -184,7 +185,12 @@ def make_handler(store: Store, cfg: config.Config, token: str, port: int):
 
         def _send(self, code: int, payload, ctype="application/json"):
             data = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False, default=str).encode()
+            gz = len(data) > 16_384 and "gzip" in self.headers.get("Accept-Encoding", "")
+            if gz:  # the galaxy payload is ~8 MB at 20k entries; JSON compresses ~10x
+                data = gzip.compress(data, compresslevel=5)
             self.send_response(code)
+            if gz:
+                self.send_header("Content-Encoding", "gzip")
             self.send_header("Content-Type", f"{ctype}; charset=utf-8")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", "no-store")

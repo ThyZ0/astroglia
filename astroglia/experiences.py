@@ -124,8 +124,9 @@ def remember(store: Store, title: str, summary: str, body: str = "", kind: str =
     return out
 
 
-def verify(store: Store, node_id: str) -> dict:
-    """Re-hash source files. Returns {'status', 'changed': [...]}; updates the node."""
+def verify(store: Store, node_id: str, commit: bool = True) -> dict:
+    """Re-hash source files (cached by size+mtime). Returns {'status', 'changed': [...]}; updates the node.
+    commit=False lets verify_all check everything in one transaction."""
     n = store.get(node_id)
     if n is None:
         raise KeyError(node_id)
@@ -140,8 +141,10 @@ def verify(store: Store, node_id: str) -> dict:
         return {"status": "stale", "changed": changed}
     if n["status"] == "stale":
         store.set_status(node_id, "active", op="verify", changed_files=[])
-    else:
-        store.upsert({"id": node_id, "verified": now()})
+    else:  # unchanged: only the verification date moves (no history entry, no per-entry commit)
+        store.db.execute("UPDATE nodes SET verified=? WHERE id=?", (now(), node_id))
+        if commit:
+            store.db.commit()
     return {"status": "active", "changed": []}
 
 
@@ -163,8 +166,10 @@ def revalidate(store: Store, node_id: str) -> dict:
 
 def verify_all(store: Store) -> dict:
     out = {"checked": 0, "stale": []}
-    for n in store.db.execute("SELECT id FROM nodes WHERE fingerprint IS NOT NULL AND status IN ('active','stale')"):
+    ids = [r["id"] for r in store.db.execute("SELECT id FROM nodes WHERE fingerprint IS NOT NULL AND status IN ('active','stale')")]
+    for nid in ids:
         out["checked"] += 1
-        if verify(store, n["id"])["status"] == "stale":
-            out["stale"].append(n["id"])
+        if verify(store, nid, commit=False)["status"] == "stale":
+            out["stale"].append(nid)
+    store.db.commit()
     return out
