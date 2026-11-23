@@ -2,6 +2,19 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [0.7.0] - 2026-11-23
+First public release.
+### Added
+- Health page and MCP tool `health`: health score (freshness, verifiability, connectivity, documentation), suggested relations, overlapping memory (merge in one click), capabilities never selected, most reused resources.
+- Timeline: what was learned, changed, went stale or was re-validated, day by day.
+- Replay a routing in the galaxy; nebula halos over real clusters; camera turns toward the selected star; labels never overlap.
+- Claude Code plugin packaging (validated with `claude plugin validate`): `/plugin install astroglia --marketplace ThyZ0/astroglia`.
+- `bench/value.py`: onboarding and recall scenarios with and without Astroglia.
+- README in French.
+### Fixed
+- The consolidation reminder now counts saves made with the CLI.
+- Linux: "Show source" opens the containing folder (test adapted); CI runs every platform even when one fails.
+
 ## [0.6.0] - unreleased
 Renamed from NEXUS to **Astroglia** (the old name collides with 134k GitHub repositories, PyPI/npm packages and Sonatype Nexus).
 ### Added
