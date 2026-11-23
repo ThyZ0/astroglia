@@ -146,6 +146,7 @@ def main(argv=None) -> int:
     rs = sub.add_parser("restore-version", help="restore an entry from its history"); rs.add_argument("history_id", type=int)
     b = sub.add_parser("backup"); b.add_argument("--out")
     rb = sub.add_parser("restore", help="restore database from a backup file"); rb.add_argument("file"); rb.add_argument("--yes", action="store_true")
+    bn = sub.add_parser("bench", help="routing benchmark vs plain BM25"); bn.add_argument("labels")
     sub.add_parser("mcp", help="run the MCP server (stdio)")
     h = sub.add_parser("hook", help="Claude Code hook entry point"); h.add_argument("event", choices=["session-start", "prompt"])
     i = sub.add_parser("install", help="register hooks + MCP in Claude Code"); i.add_argument("--yes", action="store_true")
@@ -207,6 +208,9 @@ def main(argv=None) -> int:
             _out({"deleted": st.delete(a.id)})
         elif a.cmd == "restore-version":
             _out({"result": st.restore(a.history_id)})
+        elif a.cmd == "bench":
+            from . import bench
+            _out(bench.run(st, cfg, a.labels))
         elif a.cmd == "backup":
             out = Path(a.out) if a.out else cfg.home / "backups" / f"nexus-{time.strftime('%Y%m%d-%H%M%S')}.db"
             _out({"backup": str(st.backup(out))})

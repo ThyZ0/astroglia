@@ -6,13 +6,13 @@ that drops redundant capabilities and respects a token budget. No LLM call.
 """
 from __future__ import annotations
 
-import math
+import re
 from datetime import datetime, timezone
 
 from .config import Config
 from .experiences import verify
 from .store import Store
-from .text import est_tokens, fts_query, terms
+from .text import est_tokens, fold, fts_query, terms
 
 SKIP_STATUS = ("missing", "disabled", "archived")
 # Plugins are containers of skills (routing them duplicates their skills); hooks run on their own.
@@ -28,7 +28,7 @@ def _age_days(ts: str) -> float:
 
 
 def route(store: Store, cfg: Config, task: str, project: str | None = None, budget: int = 1200,
-          kinds: list[str] | None = None, limit: int = 12) -> dict:
+          kinds: list[str] | None = None, limit: int = 12, log: bool = True) -> dict:
     match = fts_query(task)
     result = {"task": task, "selected": [], "rejected": [], "estimated_tokens": 0, "budget": budget,
               "note": "Pointers only. Fetch full content with nexus_get(id) when needed. Token counts are estimates."}
@@ -37,11 +37,13 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
         return result
     hits = store.fts(match)
     if not hits:
-        store.log("route", task=task[:300], selected=[], rejected=0)
+        if log:
+            store.log("route", task=task[:300], selected=[], rejected=0)
         return result
     best = min(s for _, s in hits)  # bm25: lower (more negative) is better
     w = cfg.weights
     qterms = set(terms(task))
+    ftask = fold(task)
     cands = []
     for nid, s in hits:
         n = store.get(nid)
@@ -50,13 +52,17 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
         if (kinds and n["kind"] not in kinds) or (not kinds and n["kind"] in DEFAULT_EXCLUDED_KINDS):
             continue
         # Relative BM25 rank alone always gives the top hit 1.0; blend with absolute term coverage.
+        # (IDF-weighted coverage was tried: hit@1 fell 0.82 -> 0.73 on bench/local-tasks.json.)
         nterms = set(terms(" ".join(filter(None, (n["title"], n["summary"], n["tags"], n["body"])))))
         covered = sum(1 for t in qterms if any(x.startswith(t[:5]) for x in nterms)) / max(1, len(qterms))
         rel = 0.5 * (s / best if best < 0 else 0.0) + 0.5 * covered
+        # The task names this resource ("use graphify", "quiz me") -> strongest signal we have.
+        # Full name only: name fragments ("test", "claude") proved too generic on the routing bench.
+        named = 1.0 if re.search(rf"(?<![\w-]){re.escape(fold(n['title']))}(?![\w-])", ftask) else 0.0
         fresh = 0.5 ** (_age_days(n["verified"]) / cfg.half_life_days)
         succ = (n["successes"] + 1) / (n["uses"] + 2)
         proj = 1.0 if project and n["project"] and project.lower() in n["project"].lower() else 0.0
-        parts = {"relevance": rel, "confidence": n["confidence"], "freshness": fresh, "success": succ, "project": proj}
+        parts = {"relevance": rel, "named": named, "confidence": n["confidence"], "freshness": fresh, "success": succ, "project": proj}
         score = sum(w.get(k, 0) * v for k, v in parts.items())
         cands.append((score, n, parts))
     cands.sort(key=lambda c: -c[0])
@@ -101,7 +107,7 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
 
     result["selected"] = chosen
     result["estimated_tokens"] = used
-    result["route_id"] = store.log("route", task=task[:300], project=project,
+    result["route_id"] = None if not log else store.log("route", task=task[:300], project=project,
                                    selected=[c["id"] for c in chosen],
                                    rejected=[{"id": r["id"], "reason": r["reason"]} for r in result["rejected"][:30]],
                                    estimated_tokens=used)

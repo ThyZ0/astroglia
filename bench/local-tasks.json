@@ -1,0 +1,27 @@
+{
+  "about": "Routing benchmark labelled for one real install (2026-11). Ids are install-specific: copy this file and relabel for yours. A task counts as a hit if ANY expected id is ranked.",
+  "tasks": [
+    {"task": "review my pull request for bugs before merging", "expect": ["skill:ponytail@ponytail:ponytail-review", "skill:superpowers@synced:requesting-code-review"]},
+    {"task": "relire mon code et trouver les bugs avant le merge", "expect": ["skill:ponytail@ponytail:ponytail-review", "skill:superpowers@synced:requesting-code-review", "skill:ponytail@ponytail:ponytail-audit"]},
+    {"task": "a test is failing and I don't understand why", "expect": ["skill:superpowers@synced:systematic-debugging"]},
+    {"task": "corriger un test qui échoue", "expect": ["skill:superpowers@synced:systematic-debugging"]},
+    {"task": "make flashcards from my lecture notes", "expect": ["skill:study-desk@synced:study-cards"]},
+    {"task": "quiz me on chapter 3 of my course", "expect": ["skill:study-desk@synced:study-quiz"]},
+    {"task": "plan my revision for the exam on the 20th", "expect": ["skill:study-desk@synced:study-plan"]},
+    {"task": "fill in a form on a website", "expect": ["skill:user:chrome-browser", "skill:user:built-in-browser", "mcp_server:user:spectra"]},
+    {"task": "create a powerpoint presentation", "expect": ["skill:user:pptx"]},
+    {"task": "extract tables from a PDF file", "expect": ["skill:user:pdf"]},
+    {"task": "build a knowledge graph of this codebase", "expect": ["skill:graphify@pleaseai:graphify"]},
+    {"task": "write a new skill for Claude Code", "expect": ["skill:user:skill-creator", "skill:superpowers@synced:writing-skills"]},
+    {"task": "save my preference so future sessions follow it", "expect": ["skill:task-observer@synced:task-observer", "command:task-observer@synced:learn"]},
+    {"task": "research the market for electric bikes and write a report", "expect": ["skill:user:deep-research"]},
+    {"task": "edit an Excel spreadsheet with formulas", "expect": ["skill:user:xlsx"]},
+    {"task": "implement a feature with tests first", "expect": ["skill:superpowers@synced:test-driven-development"]},
+    {"task": "add provider integration for Cortex and Graphify, project understanding cache, and a routing benchmark to a Python project with tests", "expect": ["skill:graphify@pleaseai:graphify", "mcp_server:user:cortex", "skill:superpowers@synced:test-driven-development"]},
+    {"task": "clean up over-engineered code and remove bloat", "expect": ["skill:ponytail@ponytail:ponytail", "skill:ponytail@ponytail:ponytail-audit"]},
+    {"task": "show my todo list and tasks for today", "expect": ["skill:productivity@synced:task-management"]},
+    {"task": "write a cover letter as a Word document", "expect": ["skill:user:docx", "skill:user:docs"]},
+    {"task": "brainstorm the design of a new feature before coding", "expect": ["skill:superpowers@synced:brainstorming"]},
+    {"task": "send an email to my team about the release", "expect": ["mcp_server:productivity@synced:gmail"]}
+  ]
+}

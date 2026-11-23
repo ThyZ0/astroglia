@@ -8,6 +8,7 @@ from pathlib import Path
 
 DEFAULT_WEIGHTS = {
     "relevance": 0.55,   # lexical match with the task (BM25, normalized)
+    "named": 0.25,       # the task names the resource itself
     "confidence": 0.15,  # how much we trust the entry
     "freshness": 0.10,   # decays with time since last verification
     "success": 0.10,     # observed usefulness (feedback)

@@ -48,7 +48,7 @@ def test_scenario4_routing_skips_redundant_capability_and_explains(env):
     sel = [s["id"] for s in r["selected"]]
     assert len({"skill:csvkit@local:csv-analyze", "skill:csvkit@local:csv-profile"} & set(sel)) == 1
     assert any("redundant with" in x["reason"] for x in r["rejected"])
-    assert all(set(s["why"]) == {"relevance", "confidence", "freshness", "success", "project"} for s in r["selected"])
+    assert all(set(s["why"]) == {"relevance", "named", "confidence", "freshness", "success", "project"} for s in r["selected"])
     assert "plugin:csvkit@local" not in sel  # containers are not routed
 
 

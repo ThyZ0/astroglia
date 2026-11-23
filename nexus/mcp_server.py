@@ -26,7 +26,9 @@ def build(cfg: config.Config | None = None) -> MCPServer:
     async def nexus_route(task: str, project: str | None = None, budget: int = 1200, kinds: list[str] | None = None) -> dict:
         """Select the resources (experiences, decisions, knowledge, skills, tools, MCP servers) worth using for a task.
         Returns selected pointers with score breakdown and rejected candidates with reasons. budget = max estimated tokens."""
-        return {"notice": NOTICE, **router.route(store, cfg, task, project=project, budget=budget, kinds=kinds)}
+        r = router.route(store, cfg, task, project=project, budget=budget, kinds=kinds)
+        r["rejected_count"], r["rejected"] = len(r["rejected"]), r["rejected"][:5]  # full list is in the event log
+        return {"notice": NOTICE, **r}
 
     @mcp.tool()
     async def nexus_search(query: str, kind: str | None = None, limit: int = 10) -> dict:
