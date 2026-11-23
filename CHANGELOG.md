@@ -2,6 +2,13 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [0.3.0] - unreleased
+### Added
+- `nexus ui`: local web interface (Dashboard, Context Monitor, Capabilities, Memory inspector with edit/merge/link/restore, Projects). Stdlib server, token + Host checks, no build step.
+- Memory merge (texts, tags, fingerprints, relations; source kept in history).
+### Fixed
+- SQLite connection usable across threads when the library is serialized (threadsafety 3).
+
 ## [0.2.0] - unreleased
 ### Added
 - Providers: project cards from Cortex (`cortex list/stats`), Graphify (`graph.json`, stale-graph detection vs git HEAD), project CLAUDE.md, Claude Code auto-memory files. Pointers only, no copies.

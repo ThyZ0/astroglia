@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXUS</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <aside class="nav" aria-label="Main navigation">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true" class="brand-mark">
+        <circle cx="16" cy="16" r="3.2"/><circle cx="6" cy="9" r="1.6"/><circle cx="26" cy="8" r="1.6"/>
+        <circle cx="7" cy="24" r="1.6"/><circle cx="25" cy="24" r="1.6"/>
+        <path d="M16 16 6 9M16 16l10-8M16 16 7 24M16 16l9 8"/>
+      </svg>
+      <span>NEXUS</span>
+    </div>
+    <nav>
+      <a href="#/dashboard" data-view="dashboard">Dashboard</a>
+      <a href="#/context" data-view="context">Context Monitor</a>
+      <a href="#/capabilities" data-view="capabilities">Capabilities</a>
+      <a href="#/memory" data-view="memory">Memory</a>
+      <a href="#/projects" data-view="projects">Projects</a>
+    </nav>
+    <div class="nav-foot">
+      <button id="sync" class="btn ghost" type="button">Sync now</button>
+      <p id="sync-state" class="muted small" aria-live="polite"></p>
+    </div>
+  </aside>
+  <main id="view" tabindex="-1" aria-live="polite"></main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="tooltip" role="tooltip" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

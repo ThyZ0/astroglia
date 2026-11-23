@@ -149,6 +149,8 @@ def main(argv=None) -> int:
     b = sub.add_parser("backup"); b.add_argument("--out")
     rb = sub.add_parser("restore", help="restore database from a backup file"); rb.add_argument("file"); rb.add_argument("--yes", action="store_true")
     bn = sub.add_parser("bench", help="routing benchmark vs plain BM25"); bn.add_argument("labels")
+    ui = sub.add_parser("ui", help="open the local web interface"); ui.add_argument("--port", type=int, default=8765)
+    ui.add_argument("--no-browser", action="store_true")
     sub.add_parser("mcp", help="run the MCP server (stdio)")
     h = sub.add_parser("hook", help="Claude Code hook entry point"); h.add_argument("event", choices=["session-start", "prompt"])
     i = sub.add_parser("install", help="register hooks + MCP in Claude Code"); i.add_argument("--yes", action="store_true")
@@ -160,6 +162,9 @@ def main(argv=None) -> int:
     if a.cmd == "hook":
         from . import hooks
         return hooks.run(a.event)
+    if a.cmd == "ui":
+        from . import web
+        web.serve(cfg, a.port, not a.no_browser); return 0
     if a.cmd == "mcp":
         from . import mcp_server
         mcp_server.main(); return 0

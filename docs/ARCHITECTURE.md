@@ -99,6 +99,10 @@ Honest reading: on capability routing, NEXUS's scoring is at best slightly ahead
 - Any exception in a hook → no output, exit 0, error logged. Claude Code is never blocked (tested).
 - MCP tools are `async` so they run on the event loop thread that owns the SQLite connection.
 
+### Web UI (v0.3)
+
+`web.py` is a stdlib `HTTPServer` (single-threaded, local single user) over the same `Store`. The front end (`nexus/ui/`) is plain HTML/CSS/JS, shipped as package data, so there is no Node and no build step. That revises the earlier Vite/Three.js plan for the 2D views; the 3D galaxy (v0.4) will vendor one ES module. Access control: bind 127.0.0.1; per-run token in the URL fragment (never sent in requests except as the `X-Nexus-Token` header); `Host` must be localhost (DNS-rebinding guard); CSP `default-src 'self'`. Stored text is rendered with `textContent` only. Mutations reuse Store methods, so they are versioned and logged like CLI/MCP changes. Merge folds one entry into another (texts, tags, file fingerprints, relations) and deletes the source into history.
+
 ## 4. Security
 
 Local only. Read-only on Claude Code config except explicit `install`/`uninstall` (with backup). MCP env values are never stored. Secrets are refused in `remember`. Returned content is labelled untrusted data. All changes are versioned. No telemetry.
@@ -109,6 +113,6 @@ Local only. Read-only on Claude Code config except explicit `install`/`uninstall
 |---|---|---|
 | **0.1** (this) | store, capability registry, experiences, router, MCP, wake-up hook, CLI | 14 tests incl. scenarios 3–6 |
 | **0.2** (this) | Providers: Cortex, Graphify, CLAUDE.md, CC memory; project cards (scenarios 1–2); routing benchmark vs BM25 | 21 tests, bench in README |
-| 0.3 | Local web UI on real data: Dashboard, Capability Explorer, Context Monitor (from `events`), Memory Inspector (edit/merge/restore) | e2e tests |
+| **0.3** (this) | Local web UI on real data (`nexus ui`): Dashboard, Context Monitor, Capabilities, Memory (edit/merge/link/restore), Projects. Stdlib HTTP server, no build step | 26 tests + scripted browser walkthrough |
 | 0.4 | Galaxy / Neural / Cluster / Void views (brain-galaxy, animations bound to `events`) | |
 | 0.5 | Adaptation: learned weights, versioned and reversible; optional local embeddings; packaging + release | |

@@ -12,7 +12,7 @@ NEXUS is a local cognitive layer for Claude Code (and, later, other agents):
 
 It complements, not replaces, code-level tools such as Cortex (AstroQuest) and [Graphify](https://graphify.com): those index *code*. NEXUS indexes *what the agent can do and what it already learned*.
 
-> Status: **v0.2, core + providers + benchmark.** The galaxy-brain UI is on the roadmap ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap)). Nothing in this README describes a feature that is not implemented.
+> Status: **v0.3, core + providers + benchmark + local web UI.** The galaxy-brain UI is on the roadmap ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap)). Nothing in this README describes a feature that is not implemented.
 
 ## Example
 
@@ -46,6 +46,20 @@ Opt-in: `nexus install --yes --prompt-hook` also routes every prompt and injects
 
 Uninstall: `nexus uninstall` (removes the hook and the MCP entry) and `nexus uninstall --purge --yes` (also deletes `~/.nexus`).
 
+## Web interface
+
+```bash
+nexus ui          # opens http://127.0.0.1:8765 in your browser (Ctrl+C to stop)
+```
+
+- **Dashboard**: counts, activity per day, entries by kind, recent operations. All computed from the local database.
+- **Context Monitor**: try a task and see what the router selects and rejects, with the score breakdown; history of every routing (including those Claude made through MCP); mark results useful or not.
+- **Capabilities**: every skill, plugin, command, agent, hook and MCP server, grouped by origin, with relations and detected overlaps.
+- **Memory**: read, edit, delete, merge, link and restore entries. Every change is versioned.
+- **Projects**: project cards with their Cortex/Graphify indexes, staleness, and remembered entries.
+
+The server listens on 127.0.0.1 only and requires a random per-run token (in the opened link) plus a localhost `Host` header, so other web pages cannot call it. No build step and no Node: plain HTML/CSS/JS served by Python.
+
 ## Use from Claude (MCP tools)
 
 | Tool | Purpose |
@@ -62,7 +76,7 @@ Uninstall: `nexus uninstall` (removes the hook and the MCP entry) and `nexus uni
 
 ## CLI
 
-`nexus sync | status | doctor | route | search | show | project | bench | remember | capabilities [--redundant] | forget | restore-version | backup | restore | install | uninstall | mcp | hook`
+`nexus ui | sync | status | doctor | route | search | show | project | bench | remember | capabilities [--redundant] | forget | restore-version | backup | restore | install | uninstall | mcp | hook`
 
 ## Measuring it
 

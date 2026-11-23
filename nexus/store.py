@@ -76,7 +76,8 @@ class Store:
         self.path = Path(path)
         if str(path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(path), timeout=5)
+        # threadsafety==3 (serialized SQLite) makes sharing safe; the UI test server runs in a thread.
+        self.db = sqlite3.connect(str(path), timeout=5, check_same_thread=sqlite3.threadsafety != 3)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
