@@ -1,19 +1,15 @@
 # Releasing Astroglia
 
-## Before the first public release (open decisions)
+## Name
 
-- **GitHub repository**: create it, then replace `<you>` in README install instructions.
-- **Import name**: the PyPI distribution `astroglia` is free (checked 2026-11), but the import package
-  `nexus` collides with an existing PyPI project named `nexus`. Installing both in one environment would
-  conflict. `pipx` isolates tools, so this only matters for library-style installs. Options: keep it (CLI
-  tool, pipx-first) or rename the package to `nexus_cognitive` (breaking for hooks: re-run `astroglia install`).
-- **Linux/macOS**: only tested on Windows so far. The CI matrix (`.github/workflows/ci.yml`) covers
-  ubuntu/windows/macos × Python 3.11–3.13 and must be green before tagging.
+Checked 2026-11 before the first release: `astroglia` is free on PyPI and npm, no software product uses the name,
+and the 18 GitHub repositories containing it are unrelated biology projects with 0-1 stars. The previous name
+(NEXUS) collided with 134k repositories, PyPI/npm packages and Sonatype Nexus.
 
 ## Every release
 
 1. `python -m pytest` green locally; CI green on all platforms.
-2. Bump the version in `pyproject.toml`, `nexus/__init__.py`, `nexus/mcp_server.py`.
+2. Bump the version in `pyproject.toml`, `astroglia/__init__.py`, `astroglia/mcp_server.py`.
 3. Move *Unreleased* entries in `CHANGELOG.md` under the new version and date.
 4. If the database schema changed: bump `SCHEMA_VERSION`, add the migration step, add a test that opens a
    database from the previous version.
