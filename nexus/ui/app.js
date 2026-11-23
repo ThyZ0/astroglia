@@ -5,7 +5,7 @@
 const token = (() => {
   const m = location.hash.match(/token=([\w-]+)/);
   // keep any view in the link ("#/memory&token=…"), drop the token from the address bar
-  if (m) { sessionStorage.setItem("nexus-token", m[1]); history.replaceState(null, "", location.hash.replace(/[#&]?token=[\w-]+/, "") || "#/dashboard"); }
+  if (m) { sessionStorage.setItem("nexus-token", m[1]); history.replaceState(null, "", location.hash.replace(/[#&?]?token=[\w-]+/, "") || "#/galaxy"); }
   return sessionStorage.getItem("nexus-token") || "";
 })();
 
@@ -132,6 +132,7 @@ function niceTicks(max) {
 
 // ---------- views ----------
 const views = {};
+let viewCleanup = null;  // set by views that run loops (galaxy), called when leaving them
 
 views.dashboard = async () => {
   setView(h("h1", {}, "Dashboard"), loading());
@@ -317,7 +318,8 @@ async function showNode(panel, id, { editable = false } = {}) {
       h("dt", {}, "Created"), h("dd", {}, fmtDate(n.created)),
       h("dt", {}, "Verified"), h("dd", {}, fmtDate(n.verified)),
       n.fingerprint ? [h("dt", {}, "Depends on"), h("dd.mono", {}, Object.keys(n.fingerprint).join("\n"))] : null,
-      Object.keys(n.meta || {}).length ? [h("dt", {}, "Metadata"), h("dd.mono", {}, JSON.stringify(n.meta))] : null),
+      Object.keys(n.meta || {}).length ? [h("dt", {}, "Metadata"), h("dd", {}, h("details", {}, h("summary.small.muted", {}, `${Object.keys(n.meta).length} field(s)`),
+        h("pre.mono.body-text", {}, JSON.stringify(n.meta, null, 2))))] : null),
     h("h2", {}, `Relations (${d.edges.length})`),
     rel.length ? h("ul.list.stack", {}, rel) : h("p.muted.small", {}, "No relations."),
     editable ? linkForm(n, panel) : null,
@@ -436,8 +438,9 @@ views.projects = async () => {
 
 // ---------- router & sync ----------
 async function route() {
-  const name = (location.hash.match(/^#\/(\w+)/) || [, "dashboard"])[1];
-  const view = views[name] ? name : "dashboard";
+  viewCleanup?.(); viewCleanup = null; $view.className = "";
+  const name = (location.hash.match(/^#\/(\w+)/) || [, "galaxy"])[1];
+  const view = views[name] ? name : "galaxy";
   document.querySelectorAll("nav a").forEach((a) => a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
   try { await views[view](); } catch (e) { setView(h("h1", {}, "NEXUS"), errorBox(e)); }
 }
@@ -453,4 +456,4 @@ document.getElementById("sync").addEventListener("click", async (e) => {
   b.disabled = false;
 });
 if (!token) setView(h("h1", {}, "NEXUS"), h("div.error-box", {}, "No access token. Open the UI with the link printed by `nexus ui`."));
-else { addEventListener("hashchange", route); route(); }
+else addEventListener("load", () => { addEventListener("hashchange", route); route(); });  // after galaxy.js has registered its views

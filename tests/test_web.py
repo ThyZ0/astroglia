@@ -33,6 +33,8 @@ def server(env):
 def test_static_page_served_but_api_needs_token_and_local_host(server):
     code, page = server("/", token="")
     assert code == 200 and b"<title>NEXUS</title>" in page
+    for asset in ("/app.js", "/galaxy.js", "/style.css"):
+        assert server(asset, token="")[0] == 200
     assert server("/api/overview", token="")[0] == 401
     assert server("/api/overview", token="wrong")[0] == 401
     assert server("/api/overview", host="evil.example:80")[0] == 403  # DNS-rebinding guard
@@ -71,3 +73,20 @@ def test_route_from_ui_is_logged_for_context_monitor(server, env):
     assert r["selected"] and r["route_id"]
     ev = json.loads(server("/api/events?kind=route")[1])
     assert ev[0]["payload"]["task"] == "flaky websocket test"
+
+
+def test_graph_voids_and_live_events(server, env):
+    s = env["store"]
+    src = env["tmp"] / "f.py"; src.write_text("x = 1\n", encoding="utf-8")
+    a = experiences.remember(s, "Tied to a file", "will go stale", files=[str(src)])
+    b = experiences.remember(s, "No files", "cannot be verified", confidence=0.3)
+    g = json.loads(server("/api/graph")[1])
+    assert {a["id"], b["id"]} <= {n["id"] for n in g["nodes"]}
+    src.write_text("x = 2\n", encoding="utf-8")
+    experiences.verify(s, a["id"])
+    v = {x["key"]: [i["id"] for i in x["items"]] for x in json.loads(server("/api/voids")[1])}
+    assert v["stale"] == [a["id"]]
+    assert b["id"] in v["unverifiable"] and b["id"] in v["low-confidence"] and b["id"] in v["isolated"]
+    s.log("route", task="t", selected=[a["id"]])
+    new = json.loads(server(f"/api/events?after={g['last_event']}")[1])
+    assert [e["kind"] for e in new][-1] == "route" and all(e["id"] > g["last_event"] for e in new)

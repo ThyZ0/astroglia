@@ -160,3 +160,38 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 @media (max-width: 1100px) { .two, .split { grid-template-columns: 1fr; } .detail { position: static; } }
 @media (max-width: 760px) { body { grid-template-columns: 1fr; } .nav { position: static; height: auto; } main { padding: 20px; } }
 .detail h2 { margin-top: 20px; }
+
+/* galaxy */
+.nav-section { margin: 14px 10px 4px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
+main.bleed { padding: 0; max-width: none; }
+.galaxy-wrap { position: relative; height: 100vh; overflow: hidden;
+  background: radial-gradient(60% 55% at 50% 50%, rgba(56, 189, 248, .05), transparent 70%); }
+canvas.galaxy { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+canvas.galaxy:active { cursor: grabbing; }
+.galaxy-top { position: absolute; top: 24px; left: 32px; right: 32px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; pointer-events: none; }
+.galaxy-top > * { pointer-events: auto; }
+.galaxy-top .row > input, .galaxy-top select { width: auto; min-width: 180px; background: rgba(11, 17, 32, .8); }
+.legend { position: absolute; left: 32px; bottom: 56px; display: grid; gap: 6px; font-size: 12px; color: var(--text-secondary);
+  background: rgba(11, 17, 32, .72); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; backdrop-filter: blur(6px); }
+.swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.ticker { position: absolute; left: 32px; right: 32px; bottom: 18px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.galaxy-side { position: absolute; top: 96px; right: 24px; bottom: 24px; width: min(420px, 40vw); overflow: auto;
+  background: rgba(14, 21, 36, .92); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; backdrop-filter: blur(8px); }
+.galaxy-side .row { margin-bottom: 8px; }
+a.btn { text-decoration: none; display: inline-block; }
+svg.neural { width: 100%; height: auto; display: block; }
+svg.neural .edge { stroke: rgba(170, 190, 230, .35); stroke-width: 1.2; }
+svg.neural .edge.far { stroke: rgba(170, 190, 230, .1); }
+svg.neural .edge-label { fill: var(--text-muted); font-size: 13px; font-family: var(--font); }
+svg.neural .nnode { cursor: pointer; }
+svg.neural .nnode text { fill: var(--text-secondary); font-size: 14px; font-family: var(--font); }
+svg.neural .nnode.center text { fill: var(--text-primary); font-size: 16px; font-weight: 600; }
+svg.neural .nnode circle { stroke: var(--surface-1); stroke-width: 2; }
+svg.neural .nnode.far circle { opacity: .55; }
+svg.neural .nnode:hover circle, svg.neural .nnode:focus circle { stroke: var(--text-primary); }
+.grid.voids { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.grid.voids ul { margin: 8px 0; display: grid; gap: 4px; font-size: 13px; }
+.grid.voids a { color: var(--text-primary); }
+.grid.cluster-layout { grid-template-columns: minmax(240px, 0.6fr) minmax(0, 1.4fr); align-items: start; }
+pre.body-text { margin: 6px 0 0; max-height: 240px; overflow: auto; }
+@media (max-width: 1100px) { .grid.cluster-layout { grid-template-columns: 1fr; } }

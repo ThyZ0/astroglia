@@ -247,11 +247,14 @@ class Store:
         self.db.commit()
         return cur.lastrowid
 
-    def events(self, limit: int = 50, kind: str | None = None) -> list[dict]:
-        q, args = "SELECT * FROM events", []
+    def events(self, limit: int = 50, kind: str | None = None, after: int | None = None) -> list[dict]:
+        """Newest first; with `after`, only events with a larger id, oldest first (for live tailing)."""
+        q, args = "SELECT * FROM events WHERE 1=1", []
         if kind:
-            q += " WHERE kind=?"; args.append(kind)
-        rows = self.db.execute(q + " ORDER BY id DESC LIMIT ?", args + [limit])
+            q += " AND kind=?"; args.append(kind)
+        if after is not None:
+            q += " AND id>?"; args.append(after)
+        rows = self.db.execute(q + (" ORDER BY id ASC" if after is not None else " ORDER BY id DESC") + " LIMIT ?", args + [limit])
         return [{"id": r["id"], "ts": r["ts"], "kind": r["kind"], "payload": json.loads(r["payload"])} for r in rows]
 
     def kv_get(self, key: str, default: str | None = None) -> str | None:

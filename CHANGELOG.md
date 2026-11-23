@@ -2,6 +2,13 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [0.4.0] - unreleased
+### Added
+- Brain-galaxy views: Galaxy (home), Neural, Clusters, Voids. Animations driven only by the event log; reduced-motion support; palette validated for colour-vision deficiencies.
+- API: `/api/graph`, `/api/voids`, `/api/events?after=` (live tailing).
+### Changed
+- Metadata in detail panels is folded by default.
+
 ## [0.3.0] - unreleased
 ### Added
 - `nexus ui`: local web interface (Dashboard, Context Monitor, Capabilities, Memory inspector with edit/merge/link/restore, Projects). Stdlib server, token + Host checks, no build step.

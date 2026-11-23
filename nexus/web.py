@@ -19,6 +19,7 @@ from .store import EDGE_TYPES, Store
 
 UI_DIR = Path(__file__).parent / "ui"
 STATIC = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
+          "/galaxy.js": ("galaxy.js", "text/javascript"),
           "/style.css": ("style.css", "text/css")}
 EDITABLE = ("title", "summary", "body", "tags", "confidence", "importance", "status", "project")
 
@@ -54,6 +55,51 @@ def overview(store: Store) -> dict:
             "avg_est_tokens": round(sum(r["payload"].get("estimated_tokens", 0) for r in routes) / len(routes)) if routes else None}
 
 
+MEMORY_KINDS = ("experience", "decision", "knowledge")
+
+
+def graph(store: Store) -> dict:
+    nodes = [{"id": n["id"], "kind": n["kind"], "title": n["title"], "status": n["status"], "project": n["project"],
+              "origin": n["meta"].get("origin"), "uses": n["uses"], "confidence": n["confidence"], "created": n["created"]}
+             for n in store.nodes() if n["status"] != "missing"]
+    ids = {n["id"] for n in nodes}
+    edges = [{k: e[k] for k in ("src", "dst", "type", "confidence")} for e in store.edges()
+             if e["src"] in ids and e["dst"] in ids]
+    last = store.db.execute("SELECT COALESCE(MAX(id), 0) FROM events").fetchone()[0]
+    return {"nodes": nodes, "edges": edges, "last_event": last}
+
+
+def voids(store: Store) -> list[dict]:
+    """Weak zones of the store, each with the rule that found it (no guesses)."""
+    from datetime import datetime, timedelta, timezone
+    nodes = [n for n in store.nodes() if n["status"] != "archived"]
+    linked = {e["src"] for e in store.edges()} | {e["dst"] for e in store.edges()}
+    old = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+    memory = [n for n in nodes if n["kind"] in MEMORY_KINDS]
+    projects = [n for n in nodes if n["kind"] == "project" and n["status"] == "active"]
+    proj_with_memory = {n["project"] for n in memory if n["source"] not in (providers.SOURCE_PROJECTS,)}
+    proj_with_doc = {n["project"] for n in memory if n["id"].startswith("knowledge:claude-md:")}
+    pick = lambda ns: [{"id": n["id"], "title": n["title"], "kind": n["kind"]} for n in ns]
+    groups = [
+        ("stale", "Stale memory", "Source files changed since the entry was recorded.",
+         [n for n in memory if n["status"] == "stale"]),
+        ("stale-index", "Stale project indexes", "Graphify graph built from an older commit than HEAD.",
+         [n for n in projects if n["meta"].get("providers", {}).get("graphify", {}).get("stale")]),
+        ("undocumented", "Undocumented projects", "No Cortex/Graphify index, no CLAUDE.md and nothing remembered.",
+         [n for n in projects if not n["meta"].get("providers") and n["title"] not in proj_with_doc | proj_with_memory]),
+        ("unverifiable", "Unverifiable memory", "Remembered by the agent without source files, so staleness cannot be checked.",
+         [n for n in memory if n["source"] not in (providers.SOURCE_PROJECTS, providers.SOURCE_MEMORY) and not n["fingerprint"]]),
+        ("low-confidence", "Uncertain provenance", "Confidence below 0.5.", [n for n in nodes if n["confidence"] < 0.5]),
+        ("unused", "Never reused", "Memory older than 14 days that no routing feedback has marked as used.",
+         [n for n in memory if n["uses"] == 0 and n["created"] < old]),
+        ("isolated", "Isolated", "No relation to anything else.",
+         [n for n in nodes if n["id"] not in linked and n["status"] == "active"]),
+        ("missing", "Gone", "Capabilities or projects no longer found on disk (kept, not deleted).",
+         [n for n in nodes if n["status"] == "missing"]),
+    ]
+    return [{"key": k, "label": l, "rule": r, "items": pick(ns)} for k, l, r, ns in groups]
+
+
 def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body: dict):
     one = lambda k, d=None: (q.get(k) or [d])[0]
     if method == "GET":
@@ -75,7 +121,12 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
                 n["validity"] = experiences.verify(store, n["id"])
             return {"node": n, "edges": store.edges(n["id"]), "history": store.history(n["id"])[:30]}
         if path == "/api/events":
-            return store.events(int(one("limit", "100")), kind=one("kind"))
+            after = one("after")
+            return store.events(int(one("limit", "100")), kind=one("kind"), after=int(after) if after else None)
+        if path == "/api/graph":
+            return graph(store)
+        if path == "/api/voids":
+            return voids(store)
         if path == "/api/project":
             return providers.project_card(store, one("ref", "")) or (404, {"error": "unknown project"})
         if path == "/api/edge-types":

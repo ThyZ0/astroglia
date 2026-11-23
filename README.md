@@ -12,7 +12,7 @@ NEXUS is a local cognitive layer for Claude Code (and, later, other agents):
 
 It complements, not replaces, code-level tools such as Cortex (AstroQuest) and [Graphify](https://graphify.com): those index *code*. NEXUS indexes *what the agent can do and what it already learned*.
 
-> Status: **v0.3, core + providers + benchmark + local web UI.** The galaxy-brain UI is on the roadmap ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap)). Nothing in this README describes a feature that is not implemented.
+> Status: **v0.4, core + providers + benchmark + local web UI with the brain-galaxy views.** The galaxy-brain UI is on the roadmap ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap)). Nothing in this README describes a feature that is not implemented.
 
 ## Example
 
@@ -52,6 +52,10 @@ Uninstall: `nexus uninstall` (removes the hook and the MCP entry) and `nexus uni
 nexus ui          # opens http://127.0.0.1:8765 in your browser (Ctrl+C to stop)
 ```
 
+- **Galaxy** (home): the brain-galaxy. Left hemisphere = what the agent can do, right = what it knows; each star is a stored entry, each line a stored relation, each star system a plugin or a project. Pulses travel from the core to the entries a routing actually selected; new entries appear when they are remembered. Animations are driven only by the store's event log, and a ticker names the event behind each one. Drag to rotate, wheel to zoom, click a star for details. Search and a "weak zones" overlay dim everything else.
+- **Neural view**: one entry, its direct relations (typed and directed) and its two-step neighbourhood; click to walk the graph.
+- **Clusters**: one star system at a time: a plugin with its capabilities, or a project with what is known about it.
+- **Voids**: the brain's weak zones, each from an explicit rule: stale memory, stale indexes, undocumented projects, unverifiable or low-confidence memory, never-reused memory, isolated entries, entries gone from disk.
 - **Dashboard**: counts, activity per day, entries by kind, recent operations. All computed from the local database.
 - **Context Monitor**: try a task and see what the router selects and rejects, with the score breakdown; history of every routing (including those Claude made through MCP); mark results useful or not.
 - **Capabilities**: every skill, plugin, command, agent, hook and MCP server, grouped by origin, with relations and detected overlaps.
