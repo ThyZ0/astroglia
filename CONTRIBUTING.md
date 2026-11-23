@@ -5,7 +5,7 @@ Thanks for helping. Astroglia's rule is simple: **every feature must make Claude
 ## Set up
 
 ```bash
-git clone https://github.com/OWNER/astroglia && cd astroglia
+git clone https://github.com/ThyZ0/astroglia && cd astroglia
 python -m venv .venv
 .venv/Scripts/pip install -e ".[dev]"     # Linux/macOS: .venv/bin/pip
 python -m pytest

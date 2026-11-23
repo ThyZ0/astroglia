@@ -38,7 +38,7 @@ Astroglia complements the tools around it instead of replacing them.
 Requires Python ≥ 3.11 and Claude Code.
 
 ```bash
-pipx install git+https://github.com/OWNER/astroglia
+pipx install git+https://github.com/ThyZ0/astroglia
 astroglia install          # dry run: prints exactly what will change
 astroglia install --yes    # SessionStart + Stop hooks (settings.json backed up) and the MCP server
 astroglia doctor
