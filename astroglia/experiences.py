@@ -89,7 +89,7 @@ def verify(store: Store, node_id: str) -> dict:
     if n is None:
         raise KeyError(node_id)
     fp = n["fingerprint"] or {}
-    changed = [f for f, h in fp.items() if sha256(Path(f)) != h]
+    changed = [f for f, h in fp.items() if h is None or sha256(Path(f)) != h]  # a missing file is a change
     if not fp:
         return {"status": n["status"], "changed": [], "note": "no source files recorded; cannot verify"}
     if changed:
@@ -110,6 +110,9 @@ def revalidate(store: Store, node_id: str) -> dict:
     if n is None:
         raise KeyError(node_id)
     fp = fingerprint(list((n["fingerprint"] or {}).keys()))
+    gone = [f for f, h in fp.items() if h is None]
+    if gone:  # a deleted source cannot be "still valid": the entry must be updated with its new files
+        raise ValueError(f"source files no longer exist: {gone}. Update the entry (remember with node_id) with the current files.")
     meta = n["meta"]; meta["changed_files"] = []
     store.upsert({"id": node_id, "status": "active", "fingerprint": fp or None, "verified": now(), "meta": meta},
                  op="revalidate")

@@ -73,6 +73,8 @@ def build(cfg: config.Config | None = None) -> MCPServer:
             return experiences.revalidate(store, id)
         except KeyError:
             return {"error": f"unknown id {id}"}
+        except ValueError as e:
+            return {"error": str(e)}
 
     @mcp.tool(name="link", description=f"Create a typed relation between two entries. Types: {', '.join(sorted(EDGE_TYPES))}.")
     async def tool_link(src: str, dst: str, type: str) -> dict:

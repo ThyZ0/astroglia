@@ -136,3 +136,14 @@ def test_backup_roundtrip(env):
     copy = Store(b)
     assert copy.stats()["nodes_by_kind"]["experience"] == 1
     copy.close()
+
+
+def test_deleted_source_file_keeps_entry_stale_and_blocks_revalidation(env):
+    import pytest
+    src = write(env["tmp"] / "gone.py", "x = 1\n")
+    e = experiences.remember(env["store"], "Depends on gone.py", "fact about gone.py", files=[str(src)])
+    src.unlink()
+    assert experiences.verify(env["store"], e["id"])["status"] == "stale"
+    with pytest.raises(ValueError, match="no longer exist"):
+        experiences.revalidate(env["store"], e["id"])
+    assert experiences.verify(env["store"], e["id"])["status"] == "stale"
