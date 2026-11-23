@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from nexus import config
-from nexus.store import Store
+from astroglia import config
+from astroglia.store import Store
 
 
 def write(p: Path, text: str) -> Path:
@@ -19,7 +19,7 @@ def skill(root: Path, name: str, desc: str) -> Path:
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    """A fake Claude Code install + empty NEXUS home."""
+    """A fake Claude Code install + empty Astroglia home."""
     claude = tmp_path / "claude"
     plugin = tmp_path / "plugins" / "csvkit"
     write(plugin / ".claude-plugin" / "plugin.json", json.dumps({"name": "csvkit", "description": "CSV tools", "version": "1.0"}))
@@ -33,10 +33,10 @@ def env(tmp_path, monkeypatch):
     skill(claude / "skills", "python-review", "Review Python code for bugs, style and test coverage before merging.")
     cj = write(tmp_path / ".claude.json", json.dumps({"mcpServers": {"db": {"type": "stdio", "command": "dbserver",
                                                                            "env": {"DB_PASSWORD": "hunter2-secret"}}}}))
-    from nexus import providers
+    from astroglia import providers
     monkeypatch.setattr(providers, "cortex_projects", lambda: [])  # never call the machine's real cortex
-    home = tmp_path / "nexus"
-    monkeypatch.setenv("NEXUS_HOME", str(home))
+    home = tmp_path / "astroglia"
+    monkeypatch.setenv("ASTROGLIA_HOME", str(home))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude))
     cfg = config.load(home)
     cfg.claude_json = cj

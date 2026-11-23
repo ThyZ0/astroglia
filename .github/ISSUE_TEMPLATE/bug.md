@@ -6,6 +6,6 @@ about: Something does not work as documented
 
 **Steps to reproduce**
 
-**`nexus doctor` output**
+**`astroglia doctor` output**
 
-**OS, Python version, `nexus --version`**
+**OS, Python version, `astroglia --version`**

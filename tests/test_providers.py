@@ -1,8 +1,8 @@
 """Providers (projects, Graphify, Cortex, Claude Code memory) and scenarios 1-2 (project understanding)."""
 import json
 
-from nexus import experiences, providers, router
-from nexus.store import Store
+from astroglia import experiences, providers, router
+from astroglia.store import Store
 
 from conftest import write
 

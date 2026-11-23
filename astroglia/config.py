@@ -1,4 +1,4 @@
-"""Paths and tunables. Optional overrides in $NEXUS_HOME/config.toml."""
+"""Paths and tunables. Optional overrides in $ASTROGLIA_HOME/config.toml."""
 from __future__ import annotations
 
 import os
@@ -30,11 +30,11 @@ class Config:
 
     @property
     def db_path(self) -> Path:
-        return self.home / "nexus.db"
+        return self.home / "astroglia.db"
 
 
 def load(home: str | os.PathLike | None = None) -> Config:
-    h = Path(home or os.environ.get("NEXUS_HOME") or Path.home() / ".nexus")
+    h = Path(home or os.environ.get("ASTROGLIA_HOME") or Path.home() / ".astroglia")
     claude_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     cfg = Config(home=h, claude_dir=claude_dir, claude_json=Path.home() / ".claude.json")
     f = h / "config.toml"

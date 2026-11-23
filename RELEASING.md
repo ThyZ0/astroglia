@@ -1,12 +1,12 @@
-# Releasing NEXUS
+# Releasing Astroglia
 
 ## Before the first public release (open decisions)
 
 - **GitHub repository**: create it, then replace `<you>` in README install instructions.
-- **Import name**: the PyPI distribution `nexus-cognitive` is free (checked 2026-11), but the import package
+- **Import name**: the PyPI distribution `astroglia` is free (checked 2026-11), but the import package
   `nexus` collides with an existing PyPI project named `nexus`. Installing both in one environment would
   conflict. `pipx` isolates tools, so this only matters for library-style installs. Options: keep it (CLI
-  tool, pipx-first) or rename the package to `nexus_cognitive` (breaking for hooks: re-run `nexus install`).
+  tool, pipx-first) or rename the package to `nexus_cognitive` (breaking for hooks: re-run `astroglia install`).
 - **Linux/macOS**: only tested on Windows so far. The CI matrix (`.github/workflows/ci.yml`) covers
   ubuntu/windows/macos × Python 3.11–3.13 and must be green before tagging.
 
@@ -21,14 +21,14 @@
    ```bash
    python -m pip wheel . --no-deps -w dist
    python -m venv /tmp/nx && /tmp/nx/bin/pip install dist/*.whl
-   NEXUS_HOME=/tmp/nx-home /tmp/nx/bin/nexus sync && NEXUS_HOME=/tmp/nx-home /tmp/nx/bin/nexus doctor
+   ASTROGLIA_HOME=/tmp/nx-home /tmp/nx/bin/astroglia sync && ASTROGLIA_HOME=/tmp/nx-home /tmp/nx/bin/astroglia doctor
    ```
-   Check that `nexus ui` serves `/`, `/app.js`, `/galaxy.js`, `/style.css`.
+   Check that `astroglia ui` serves `/`, `/app.js`, `/galaxy.js`, `/style.css`.
 6. Tag `vX.Y.Z`, push the tag, publish to PyPI (`python -m build && twine upload dist/*`).
 
 ## Compatibility promises
 
 - MCP tool names and their required arguments are a public interface: additive changes only within 0.x minors.
-- The database is migrated forward automatically; a database from a newer NEXUS is refused with a clear
+- The database is migrated forward automatically; a database from a newer Astroglia is refused with a clear
   message, never modified.
 - Hooks always fail open.

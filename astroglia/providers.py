@@ -1,4 +1,4 @@
-"""Providers: systems NEXUS points to instead of copying them.
+"""Providers: systems Astroglia points to instead of copying them.
 
 - Projects: discovered from config roots, Claude Code's project list and Cortex's index list.
   Each gets a `project:<name>` card saying where it is, what has indexed it, whether that
@@ -202,7 +202,7 @@ def sync(store: Store, cfg: Config) -> dict:
 
 
 def sync_all(store: Store, cfg: Config, extra_roots: list[str] = ()) -> dict:
-    """Everything a session start or `nexus sync` needs, incremental."""
+    """Everything a session start or `astroglia sync` needs, incremental."""
     caps = capabilities.sync(store, cfg.claude_dir, cfg.claude_json, list(cfg.project_roots) + list(extra_roots),
                              cfg.redundancy_threshold)
     prov = sync(store, cfg)
@@ -211,7 +211,7 @@ def sync_all(store: Store, cfg: Config, extra_roots: list[str] = ()) -> dict:
 
 
 def project_card(store: Store, ref: str) -> dict | None:
-    """What NEXUS knows about a project (by name or by a path inside it): providers, and every
+    """What Astroglia knows about a project (by name or by a path inside it): providers, and every
     remembered entry with its validity. Stale entries list the changed files, so only those parts
     need re-analysis."""
     p = store.get(f"project:{ref}")
@@ -234,11 +234,11 @@ def project_card(store: Store, ref: str) -> dict | None:
             entries[e["status"]].append({"id": e["id"], "kind": e["kind"], "title": e["title"],
                                          "summary": e["summary"][:200], "changed": e.get("changed", [])})
     changed = sorted({f for e in entries["stale"] for f in e["changed"]})
-    advice = ("No remembered understanding yet: analyse the project, then save it with nexus_remember "
+    advice = ("No remembered understanding yet: analyse the project, then save it with remember "
               "(one entry per module/aspect, with its files) so later sessions can reuse it."
               if not entries["active"] and not entries["stale"] else
               f"Reuse the {len(entries['active'])} valid entries. Re-check only the stale ones "
-              f"({len(changed)} changed files), then nexus_revalidate or update them." if entries["stale"] else
+              f"({len(changed)} changed files), then revalidate or update them." if entries["stale"] else
               f"All {len(entries['active'])} remembered entries are still valid: no re-analysis needed.")
     return {"project": {k: p[k] for k in ("id", "title", "summary", "ref")}, "providers": p["meta"].get("providers", {}),
             "entries": entries, "changed_files": changed, "advice": advice}

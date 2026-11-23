@@ -31,7 +31,7 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
           kinds: list[str] | None = None, limit: int = 12, log: bool = True) -> dict:
     match = fts_query(task)
     result = {"task": task, "selected": [], "rejected": [], "estimated_tokens": 0, "budget": budget,
-              "note": "Pointers only. Fetch full content with nexus_get(id) when needed. Token counts are estimates."}
+              "note": "Pointers only. Fetch full content with get(id) when needed. Token counts are estimates."}
     if not match:
         result["note"] = "Task has no searchable terms."
         return result

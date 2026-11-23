@@ -9,8 +9,8 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 - Robustness tests: newer database refused, unreadable config, busy port, 5000-entry routing under 0.5 s.
 ### Fixed
 - Muted text contrast raised to WCAG AA (4.0:1 -> 4.8:1 on cards).
-- `nexus ui` on a busy port and a broken `config.toml` now print a message instead of a traceback.
-- `nexus uninstall` always backs up settings.json, even when the backups folder does not exist yet.
+- `astroglia ui` on a busy port and a broken `config.toml` now print a message instead of a traceback.
+- `astroglia uninstall` always backs up settings.json, even when the backups folder does not exist yet.
 
 ## [0.4.0] - unreleased
 ### Added
@@ -21,7 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [0.3.0] - unreleased
 ### Added
-- `nexus ui`: local web interface (Dashboard, Context Monitor, Capabilities, Memory inspector with edit/merge/link/restore, Projects). Stdlib server, token + Host checks, no build step.
+- `astroglia ui`: local web interface (Dashboard, Context Monitor, Capabilities, Memory inspector with edit/merge/link/restore, Projects). Stdlib server, token + Host checks, no build step.
 - Memory merge (texts, tags, fingerprints, relations; source kept in history).
 ### Fixed
 - SQLite connection usable across threads when the library is serialized (threadsafety 3).
@@ -29,12 +29,12 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 ## [0.2.0] - unreleased
 ### Added
 - Providers: project cards from Cortex (`cortex list/stats`), Graphify (`graph.json`, stale-graph detection vs git HEAD), project CLAUDE.md, Claude Code auto-memory files. Pointers only, no copies.
-- `nexus_project` MCP tool / `nexus project` CLI: what to reuse for a project and which files changed since.
+- `project` MCP tool / `astroglia project` CLI: what to reuse for a project and which files changed since.
 - Wake-up manifest shows the current project, its indexes and their staleness.
-- `nexus bench`: routing benchmark vs plain BM25; labelled `bench/local-tasks.json`.
+- `astroglia bench`: routing benchmark vs plain BM25; labelled `bench/local-tasks.json`.
 - Router: full-name match signal (`named` weight).
 ### Changed
-- MCP `nexus_route` returns the top 5 rejections plus a count (the full list is in the event log).
+- MCP `route` returns the top 5 rejections plus a count (the full list is in the event log).
 - `Store.reconcile` shared by all incremental syncs.
 
 ## [0.1.0] - unreleased

@@ -1,7 +1,7 @@
 """Local web UI: a stdlib HTTP server over the same store as the CLI and MCP server.
 
 Security: binds 127.0.0.1 only; every /api call needs the per-run token (sent by the page as
-X-Nexus-Token) and a localhost Host header, so other web pages cannot drive the API
+X-Astroglia-Token) and a localhost Host header, so other web pages cannot drive the API
 (CSRF / DNS rebinding). All mutations go through Store methods, so they are versioned and logged.
 """
 from __future__ import annotations
@@ -199,7 +199,7 @@ def make_handler(store: Store, cfg: config.Config, token: str, port: int):
                 return self._send(200, (UI_DIR / name).read_bytes(), ctype)
             if not url.path.startswith("/api/"):
                 return self._send(404, {"error": "not found"})
-            if not secrets.compare_digest(self.headers.get("X-Nexus-Token", ""), token):
+            if not secrets.compare_digest(self.headers.get("X-Astroglia-Token", ""), token):
                 return self._send(401, {"error": "missing or bad token"})
             body = {}
             if method == "POST":
@@ -230,7 +230,7 @@ def serve(cfg: config.Config, port: int = 8765, open_browser: bool = True) -> No
     port = httpd.server_port  # resolves port 0 to the real one
     httpd.RequestHandlerClass = make_handler(store, cfg, token, port)
     url = f"http://127.0.0.1:{port}/#token={token}"
-    print(f"NEXUS UI on {url}  (Ctrl+C to stop)", flush=True)
+    print(f"Astroglia UI on {url}  (Ctrl+C to stop)", flush=True)
     if open_browser:
         webbrowser.open(url)
     try:

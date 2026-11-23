@@ -5,14 +5,14 @@ import time
 
 import pytest
 
-from nexus import cli, experiences, router
-from nexus.store import SCHEMA_VERSION, Store
+from astroglia import cli, experiences, router
+from astroglia.store import SCHEMA_VERSION, Store
 
 
 def test_database_from_newer_version_is_refused_clearly(tmp_path):
     db = tmp_path / "n.db"
     sqlite3.connect(db).execute(f"PRAGMA user_version={SCHEMA_VERSION + 1}")
-    with pytest.raises(RuntimeError, match="newer than this NEXUS"):
+    with pytest.raises(RuntimeError, match="newer than this Astroglia"):
         Store(db)
 
 

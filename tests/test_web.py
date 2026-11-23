@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from nexus import experiences, web
+from astroglia import experiences, web
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def server(env):
     def call(path, body=None, token="tok", host=None):
         req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method="POST" if body is not None else "GET",
                                      data=json.dumps(body).encode() if body is not None else None,
-                                     headers={"X-Nexus-Token": token, **({"Host": host} if host else {})})
+                                     headers={"X-Astroglia-Token": token, **({"Host": host} if host else {})})
         try:
             with urllib.request.urlopen(req) as r:
                 return r.status, r.read()
@@ -32,7 +32,7 @@ def server(env):
 
 def test_static_page_served_but_api_needs_token_and_local_host(server):
     code, page = server("/", token="")
-    assert code == 200 and b"<title>NEXUS</title>" in page
+    assert code == 200 and b"<title>Astroglia</title>" in page
     for asset in ("/app.js", "/galaxy.js", "/style.css"):
         assert server(asset, token="")[0] == 200
     assert server("/api/overview", token="")[0] == 401

@@ -1,18 +1,18 @@
 "use strict";
-// NEXUS UI. Every value shown comes from the local API; text from the store is untrusted,
+// Astroglia UI. Every value shown comes from the local API; text from the store is untrusted,
 // so it is only ever inserted with textContent (never innerHTML).
 
 const token = (() => {
   const m = location.hash.match(/token=([\w-]+)/);
   // keep any view in the link ("#/memory&token=…"), drop the token from the address bar
-  if (m) { sessionStorage.setItem("nexus-token", m[1]); history.replaceState(null, "", location.hash.replace(/[#&?]?token=[\w-]+/, "") || "#/galaxy"); }
-  return sessionStorage.getItem("nexus-token") || "";
+  if (m) { sessionStorage.setItem("astroglia-token", m[1]); history.replaceState(null, "", location.hash.replace(/[#&?]?token=[\w-]+/, "") || "#/galaxy"); }
+  return sessionStorage.getItem("astroglia-token") || "";
 })();
 
 async function api(path, body) {
   const res = await fetch(path, {
     method: body ? "POST" : "GET",
-    headers: { "X-Nexus-Token": token, ...(body ? { "Content-Type": "application/json" } : {}) },
+    headers: { "X-Astroglia-Token": token, ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -50,7 +50,7 @@ const STATUS_ICON = { active: "●", stale: "⚠", missing: "✕", disabled: "�
 const status = (s) => h(`span.chip.status-${s}`, { title: `status: ${s}` }, `${STATUS_ICON[s] || "•"} ${s}`);
 const kindChip = (k) => h("span.chip.kind", {}, k.replace("_", " "));
 const loading = () => h("div.card", {}, h("div.skeleton"), h("div.skeleton", {}), h("div.skeleton"));
-const errorBox = (e) => h("div.error-box", { role: "alert" }, `Could not load: ${e.message}. Is \`nexus ui\` still running?`);
+const errorBox = (e) => h("div.error-box", { role: "alert" }, `Could not load: ${e.message}. Is \`astroglia ui\` still running?`);
 function setView(...nodes) { fill($view, ...nodes); $view.focus({ preventScroll: true }); }
 
 // ---------- tooltip ----------
@@ -144,7 +144,7 @@ views.dashboard = async () => {
   const activity = fillDays(o.activity, 30);
   setView(
     h("h1", {}, "Dashboard"),
-    h("p.lede", {}, `Health of this NEXUS store (v${o.version}). Every number is counted from the local database.`),
+    h("p.lede", {}, `Health of this Astroglia store (v${o.version}). Every number is counted from the local database.`),
     h("div.grid.kpis", {},
       kpi(caps, "Capabilities", `${k.skill || 0} skills · ${k.mcp_server || 0} MCP servers`),
       kpi(k.project || 0, "Projects"),
@@ -162,7 +162,7 @@ views.dashboard = async () => {
       h("div.card", {}, h("h2", {}, "Sync"),
         h("div", {},
           h("p", {}, "Last capability sync: ", h("strong", {}, fmtDate(o.last_capability_sync))),
-          h("p", {}, "Sessions started with NEXUS: ", h("strong", {}, String(o.sessions))),
+          h("p", {}, "Sessions started with Astroglia: ", h("strong", {}, String(o.sessions))),
           h("p", {}, "Logged events: ", h("strong", {}, String(o.events)))),
         Object.entries(s).map(([st, n]) => h("span", {}, status(st), ` ${n} `)))),
   );
@@ -201,7 +201,7 @@ views.context = async () => {
   const history_ = h("div", {}, loading());
   setView(
     h("h1", {}, "Context Monitor"),
-    h("p.lede", {}, "What the router selected or rejected for each task, and why. These are NEXUS's own operations, not Claude's reasoning."),
+    h("p.lede", {}, "What the router selected or rejected for each task, and why. These are Astroglia's own operations, not Claude's reasoning."),
     h("form.card.row", { onsubmit: run }, input, h("button.btn.primary", { type: "submit" }, "Route")),
     h("div", {}, out),
     h("div.card", {}, h("h2", {}, "Recent routings"), history_));
@@ -222,7 +222,7 @@ function routeResult(r) {
         h("button.btn.ghost.small", { type: "button", onclick: (e) => feedback([s.id], false, e.target) }, "Not useful")))));
   return h("div.grid.split", {},
     h("div.stack", {}, h("h2", {}, `Selected (${r.selected.length}) · ~${r.estimated_tokens}/${r.budget} tokens (estimate)`),
-      picks.length ? picks : h("p.empty", {}, "Nothing relevant enough. NEXUS returns nothing rather than noise.")),
+      picks.length ? picks : h("p.empty", {}, "Nothing relevant enough. Astroglia returns nothing rather than noise.")),
     h("div.card", {}, h("h2", {}, `Rejected (${r.rejected.length})`),
       r.rejected.length ? r.rejected.map((x) => h("div.reject", {}, h("span", {}, x.title), h("span.mono.muted", {}, String(x.score)),
         h("span.small.muted", {}, x.reason))) : h("p.empty", {}, "No candidates rejected.")));
@@ -236,7 +236,7 @@ async function feedback(ids, useful, btn) {
 
 async function routeHistory() {
   const ev = await api("/api/events?kind=route&limit=30");
-  if (!ev.length) return [h("p.empty", {}, "No routing yet. Claude calls nexus_route, or try one above.")];
+  if (!ev.length) return [h("p.empty", {}, "No routing yet. Claude calls route, or try one above.")];
   return ev.map((e) => h("details", { class: "event-details" },
     h("summary", {}, h("span.muted", {}, fmtDate(e.ts) + "  "), `“${e.payload.task}”`),
     h("p.small", {}, "Selected: ", (e.payload.selected || []).join(", ") || "none"),
@@ -387,7 +387,7 @@ views.memory = async () => {
       onclick: (e) => pick(e.currentTarget, n), onkeydown: (e) => e.key === "Enter" && pick(e.currentTarget, n) },
       h("div.title", {}, h("span", {}, n.title), kindChip(n.kind), n.status !== "active" ? status(n.status) : null),
       h("div.desc", {}, n.summary), n.project ? h("div.small.muted", {}, `project: ${n.project}`) : null))
-      : [h("li.empty", {}, nodes.length ? "Nothing matches." : "Memory is empty. Claude fills it with nexus_remember, or use `nexus remember` in a terminal.")]));
+      : [h("li.empty", {}, nodes.length ? "Nothing matches." : "Memory is empty. Claude fills it with remember, or use `astroglia remember` in a terminal.")]));
   };
   const pick = (li, n) => {
     list.querySelectorAll("[aria-selected=true]").forEach((x) => x.setAttribute("aria-selected", "false"));
@@ -406,7 +406,7 @@ views.memory = async () => {
 views.projects = async () => {
   setView(h("h1", {}, "Projects"), loading());
   const nodes = (await api("/api/nodes?kinds=project")).sort((a, b) => a.title.localeCompare(b.title));
-  const detail = h("div.card.detail", {}, h("p.empty", {}, "Select a project to see its indexes and what NEXUS can reuse."));
+  const detail = h("div.card.detail", {}, h("p.empty", {}, "Select a project to see its indexes and what Astroglia can reuse."));
   const open = async (li, n) => {
     document.querySelectorAll("#view .item[aria-selected=true]").forEach((x) => x.setAttribute("aria-selected", "false"));
     li.setAttribute("aria-selected", "true");
@@ -427,12 +427,12 @@ views.projects = async () => {
     } catch (e) { fill(detail, errorBox(e)); }
   };
   setView(h("h1", {}, "Projects"),
-    h("p.lede", {}, "Projects NEXUS knows, where their understanding already lives (Cortex, Graphify, CLAUDE.md), and whether it is still current."),
+    h("p.lede", {}, "Projects Astroglia knows, where their understanding already lives (Cortex, Graphify, CLAUDE.md), and whether it is still current."),
     h("div.grid.split", {},
       h("div.card", {}, nodes.length ? h("ul.list", {}, nodes.map((n) => h("li.item", { tabindex: 0, "aria-selected": "false",
         onclick: (e) => open(e.currentTarget, n), onkeydown: (e) => e.key === "Enter" && open(e.currentTarget, n) },
         h("div.title", {}, h("span", {}, n.title), n.status !== "active" ? status(n.status) : null),
-        h("div.desc", {}, n.summary)))) : h("p.empty", {}, "No project found. Add folders to project_roots in ~/.nexus/config.toml, then Sync.")),
+        h("div.desc", {}, n.summary)))) : h("p.empty", {}, "No project found. Add folders to project_roots in ~/.astroglia/config.toml, then Sync.")),
       detail));
 };
 
@@ -442,7 +442,7 @@ async function route() {
   const name = (location.hash.match(/^#\/(\w+)/) || [, "galaxy"])[1];
   const view = views[name] ? name : "galaxy";
   document.querySelectorAll("nav a").forEach((a) => a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
-  try { await views[view](); } catch (e) { setView(h("h1", {}, "NEXUS"), errorBox(e)); }
+  try { await views[view](); } catch (e) { setView(h("h1", {}, "Astroglia"), errorBox(e)); }
 }
 document.getElementById("sync").addEventListener("click", async (e) => {
   const b = e.currentTarget, state = document.getElementById("sync-state");
@@ -455,5 +455,5 @@ document.getElementById("sync").addEventListener("click", async (e) => {
   } catch (err) { state.textContent = ""; toast(err.message, true); }
   b.disabled = false;
 });
-if (!token) setView(h("h1", {}, "NEXUS"), h("div.error-box", {}, "No access token. Open the UI with the link printed by `nexus ui`."));
+if (!token) setView(h("h1", {}, "Astroglia"), h("div.error-box", {}, "No access token. Open the UI with the link printed by `astroglia ui`."));
 else addEventListener("load", () => { addEventListener("hashchange", route); route(); });  // after galaxy.js has registered its views

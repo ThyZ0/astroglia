@@ -86,7 +86,7 @@ class Store:
     def _migrate(self) -> None:
         v = self.db.execute("PRAGMA user_version").fetchone()[0]
         if v > SCHEMA_VERSION:
-            raise RuntimeError(f"Database schema v{v} is newer than this NEXUS (v{SCHEMA_VERSION}); upgrade NEXUS.")
+            raise RuntimeError(f"Database schema v{v} is newer than this Astroglia (v{SCHEMA_VERSION}); upgrade Astroglia.")
         if v < 1:
             self.db.executescript(_SCHEMA)
         # future migrations: `if v < 2: ...`

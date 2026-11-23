@@ -11,4 +11,4 @@
 4. Schema changes: bump `SCHEMA_VERSION` in `nexus/store.py` and add a migration step; never edit an old one.
 5. Commits: imperative, small, one topic. Update `CHANGELOG.md` under *Unreleased*.
 
-Bugs: open an issue with `nexus doctor` output and steps to reproduce.
+Bugs: open an issue with `astroglia doctor` output and steps to reproduce.

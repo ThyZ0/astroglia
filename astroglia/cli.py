@@ -1,4 +1,4 @@
-"""`nexus` command line."""
+"""`astroglia` command line."""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ from pathlib import Path
 from . import __version__, capabilities, config, experiences, providers, router
 from .store import Store
 
-HOOK_MARK = "-m nexus hook"
+HOOK_MARK = "-m astroglia hook"
 
 
 def _out(obj) -> None:
@@ -21,7 +21,7 @@ def _out(obj) -> None:
 
 
 def _hook_cmd(event: str) -> str:
-    return f'"{Path(sys.executable).as_posix()}" -m nexus hook {event}'
+    return f'"{Path(sys.executable).as_posix()}" -m astroglia hook {event}'
 
 
 def _settings_plan(cfg: config.Config, with_prompt_hook: bool) -> tuple[Path, dict, dict]:
@@ -55,7 +55,7 @@ def _strip_hooks(settings: dict) -> dict:
 def cmd_install(cfg, a):
     path, cur, new = _settings_plan(cfg, a.prompt_hook)
     claude = shutil.which("claude")
-    mcp_cmd = [claude or "claude", "mcp", "add", "--scope", "user", "nexus", "--", sys.executable, "-m", "nexus", "mcp"]
+    mcp_cmd = [claude or "claude", "mcp", "add", "--scope", "user", "astroglia", "--", sys.executable, "-m", "astroglia", "mcp"]
     plan = {"settings_file": str(path), "hooks_to_set": new.get("hooks"), "mcp_command": " ".join(mcp_cmd),
             "claude_cli_found": bool(claude)}
     if not a.yes:
@@ -68,7 +68,7 @@ def cmd_install(cfg, a):
     path.write_text(json.dumps(new, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     mcp_ok = False
     if claude:
-        subprocess.run([claude, "mcp", "remove", "--scope", "user", "nexus"], capture_output=True)
+        subprocess.run([claude, "mcp", "remove", "--scope", "user", "astroglia"], capture_output=True)
         mcp_ok = subprocess.run(mcp_cmd, capture_output=True, text=True).returncode == 0
     _out({"installed": True, "settings_backup": str(backup) if path.exists() else None, "mcp_registered": mcp_ok,
           **({} if mcp_ok else {"manual_mcp": " ".join(mcp_cmd)})})
@@ -86,7 +86,7 @@ def cmd_uninstall(cfg, a):
             path.write_text(json.dumps(stripped, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     claude = shutil.which("claude")
     if claude:
-        subprocess.run([claude, "mcp", "remove", "--scope", "user", "nexus"], capture_output=True)
+        subprocess.run([claude, "mcp", "remove", "--scope", "user", "astroglia"], capture_output=True)
     msg = {"hooks_removed": True, "mcp_removed": bool(claude)}
     if a.purge:
         if not a.yes:
@@ -112,9 +112,9 @@ def cmd_doctor(cfg, a):
         check("database + FTS5", False, f"{type(e).__name__}: {e}")
     settings = cfg.claude_dir / "settings.json"
     hooked = settings.exists() and HOOK_MARK in settings.read_text(encoding="utf-8")
-    check("SessionStart hook installed", hooked, "run `nexus install --yes`" if not hooked else "")
+    check("SessionStart hook installed", hooked, "run `astroglia install --yes`" if not hooked else "")
     cj = json.loads(cfg.claude_json.read_text(encoding="utf-8")) if cfg.claude_json.exists() else {}
-    check("MCP server registered", "nexus" in (cj.get("mcpServers") or {}), "")
+    check("MCP server registered", "astroglia" in (cj.get("mcpServers") or {}), "")
     for tool in ("claude", "cortex", "graphify"):
         check(f"{tool} on PATH (optional)", shutil.which(tool), shutil.which(tool) or "not found")
     errlog = cfg.home / "hook-errors.log"
@@ -125,9 +125,9 @@ def cmd_doctor(cfg, a):
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(prog="nexus", description="NEXUS: capability registry, experience memory and context router for Claude Code")
+    p = argparse.ArgumentParser(prog="astroglia", description="Astroglia: capability registry, experience memory and context router for Claude Code")
     p.add_argument("--version", action="version", version=__version__)
-    p.add_argument("--home", help="data dir (default ~/.nexus or $NEXUS_HOME)")
+    p.add_argument("--home", help="data dir (default ~/.astroglia or $ASTROGLIA_HOME)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("sync", help="scan capabilities and verify memories (incremental)")
     sub.add_parser("status", help="counts and recent events")
@@ -155,12 +155,12 @@ def main(argv=None) -> int:
     h = sub.add_parser("hook", help="Claude Code hook entry point"); h.add_argument("event", choices=["session-start", "prompt"])
     i = sub.add_parser("install", help="register hooks + MCP in Claude Code"); i.add_argument("--yes", action="store_true")
     i.add_argument("--prompt-hook", action="store_true", help="also route every prompt (opt-in, costs context)")
-    u = sub.add_parser("uninstall"); u.add_argument("--purge", action="store_true", help="also delete all NEXUS data"); u.add_argument("--yes", action="store_true")
+    u = sub.add_parser("uninstall"); u.add_argument("--purge", action="store_true", help="also delete all Astroglia data"); u.add_argument("--yes", action="store_true")
     a = p.parse_args(argv)
     try:
         cfg = config.load(a.home)
     except (ValueError, OSError) as e:  # tomllib.TOMLDecodeError is a ValueError
-        _out(f"error: cannot read NEXUS config.toml: {e}"); return 1
+        _out(f"error: cannot read Astroglia config.toml: {e}"); return 1
 
     if a.cmd == "hook":
         from . import hooks
@@ -170,7 +170,7 @@ def main(argv=None) -> int:
         try:
             web.serve(cfg, a.port, not a.no_browser)
         except OSError as e:  # Windows reports a busy port as PermissionError (WinError 10013)
-            _out(f"error: port {a.port} is already in use or not allowed ({e.strerror or e}). Try `nexus ui --port 8766`."); return 1
+            _out(f"error: port {a.port} is already in use or not allowed ({e.strerror or e}). Try `astroglia ui --port 8766`."); return 1
         return 0
     if a.cmd == "mcp":
         from . import mcp_server
@@ -214,7 +214,7 @@ def main(argv=None) -> int:
         elif a.cmd == "project":
             card = providers.project_card(st, a.ref)
             if card is None:
-                _out(f"unknown project {a.ref!r} (run `nexus sync`; projects come from Claude Code, Cortex and config roots)"); return 1
+                _out(f"unknown project {a.ref!r} (run `astroglia sync`; projects come from Claude Code, Cortex and config roots)"); return 1
             _out(card)
         elif a.cmd == "remember":
             _out(experiences.remember(st, a.title, a.summary, a.body, kind=a.kind, project=a.project, tags=a.tag,
@@ -225,7 +225,7 @@ def main(argv=None) -> int:
                       sorted(st.edges(type="similar_to"), key=lambda e: -e["confidence"])])
             else:
                 rows = [n for n in st.nodes(kind=a.kind) if n["kind"] in capabilities.CAP_KINDS and (a.all or n["status"] == "active")]
-                _out("\n".join(f"{n['status']:8} {n['id']:60} {n['summary'][:70]}" for n in rows) or "none (run `nexus sync`)")
+                _out("\n".join(f"{n['status']:8} {n['id']:60} {n['summary'][:70]}" for n in rows) or "none (run `astroglia sync`)")
         elif a.cmd == "forget":
             _out({"deleted": st.delete(a.id)})
         elif a.cmd == "restore-version":
@@ -234,7 +234,7 @@ def main(argv=None) -> int:
             from . import bench
             _out(bench.run(st, cfg, a.labels))
         elif a.cmd == "backup":
-            out = Path(a.out) if a.out else cfg.home / "backups" / f"nexus-{time.strftime('%Y%m%d-%H%M%S')}.db"
+            out = Path(a.out) if a.out else cfg.home / "backups" / f"astroglia-{time.strftime('%Y%m%d-%H%M%S')}.db"
             _out({"backup": str(st.backup(out))})
     except (ValueError, KeyError) as e:
         _out(f"error: {e}"); return 1

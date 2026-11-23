@@ -2,8 +2,8 @@
 import io
 import json
 
-from nexus import capabilities, experiences, hooks, router
-from nexus.store import Store
+from astroglia import capabilities, experiences, hooks, router
+from astroglia.store import Store
 
 from conftest import skill, write
 
@@ -111,7 +111,7 @@ def test_budget_is_respected(env):
 
 def test_session_start_manifest(env):
     out = hooks.session_start({"cwd": str(env["tmp"])}, env["cfg"])
-    assert out.startswith("[NEXUS]") and "Capabilities:" in out and "nexus_route" in out
+    assert out.startswith("[Astroglia]") and "Capabilities:" in out and "route" in out
     assert len(out) < 2000  # stays a light manifest
     skill(env["claude"] / "skills", "brand-new", "Something new.")
     assert "brand-new" in hooks.session_start({}, env["cfg"])
@@ -121,7 +121,7 @@ def test_scenario6_hook_fails_open(env, monkeypatch, capsys):
     # Corrupt database: hook must print nothing and exit 0 so Claude Code continues normally.
     env["store"].close()
     env["cfg"].db_path.write_bytes(b"this is not a sqlite file" * 100)
-    for f in env["cfg"].home.glob("nexus.db-*"):
+    for f in env["cfg"].home.glob("astroglia.db-*"):
         f.unlink()
     monkeypatch.setattr("sys.stdin", io.StringIO('{"cwd": "."}'))
     assert hooks.run("session-start") == 0

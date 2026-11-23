@@ -73,7 +73,7 @@ views.galaxy = async () => {
   const rotateBtn = h("button.btn.ghost.small", { type: "button", "aria-pressed": String(!reduceMotion) }, "Rotate");
   const voidSel = h("select", { "aria-label": "Highlight weak zones" }, h("option", { value: "" }, "Weak zones: off"));
   const side = h("aside.galaxy-side", { hidden: true });
-  const ticker = h("div.ticker", { "aria-live": "polite" }, "Live: waiting for NEXUS operations…");
+  const ticker = h("div.ticker", { "aria-live": "polite" }, "Live: waiting for Astroglia operations…");
   const legend = h("div.legend", {}, Object.entries(FAMILY).map(([f, c]) => {
     const dot = h("span.swatch"); dot.style.background = c;
     return h("div.row", {}, dot, FAMILY_LABEL[f]);
@@ -299,7 +299,7 @@ views.galaxy = async () => {
         const t = now();
         for (const n of g.nodes) if (!before.has(n.id)) births.set(n.id, t);
       }
-    } catch { ticker.textContent = "Live updates paused: NEXUS UI server not reachable."; }
+    } catch { ticker.textContent = "Live updates paused: Astroglia UI server not reachable."; }
     if (!stop) setTimeout(poll, 2500);
   }
 
@@ -347,7 +347,7 @@ views.neural = async () => {
   const panel = h("div.card.detail", {});
   setView(h("h1", {}, "Neural view"),
     h("p.lede", {}, `${n.title}: ${ring1.length} direct relation(s)${ring2.length ? `, ${ring2.length} at two steps` : ""}. Click a node to move to it.`),
-    h("div.grid.two", {}, h("div.card", {}, svg, ring1.length ? null : h("p.empty", {}, "No relations yet. Link it from the Memory page or with nexus_link.")), panel));
+    h("div.grid.two", {}, h("div.card", {}, svg, ring1.length ? null : h("p.empty", {}, "No relations yet. Link it from the Memory page or with link.")), panel));
   showNode(panel, id, { editable: MEMORY.has(n.kind) });
 };
 
