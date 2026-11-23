@@ -7,11 +7,12 @@ NEXUS is a local cognitive layer for Claude Code (and, later, other agents):
 - **Capability registry.** Discovers every skill, plugin, command, agent, hook and MCP server installed, links them, and detects overlaps.
 - **Experience memory.** Stores what was learned (fixes, decisions, project knowledge) *together with the hashes of the files it depends on*. When those files change, the entry is flagged **stale** instead of being served as still true.
 - **Context Router.** For a task, returns a short ranked list of pointers within a token budget, with a score breakdown for every pick and a reason for every rejection (redundant, over budget, low relevance…). Deterministic: no LLM call, no cloud.
+- **Project cards.** Knows your projects (from Claude Code, Cortex and config) and *where* their understanding lives: Cortex index, Graphify graph (flagged **stale** when built from an older commit than HEAD), CLAUDE.md, and the entries already remembered about it. `nexus_project` tells the agent what it can reuse and exactly which files changed since, so it re-analyses only those parts.
 - **Cognitive wake-up.** A `SessionStart` hook gives Claude a ~100-token manifest of what is available and what changed since the last session.
 
 It complements, not replaces, code-level tools such as Cortex (AstroQuest) and [Graphify](https://graphify.com): those index *code*. NEXUS indexes *what the agent can do and what it already learned*.
 
-> Status: **v0.1, core only.** The galaxy-brain UI is on the roadmap ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap)). Nothing in this README describes a feature that is not implemented.
+> Status: **v0.2, core + providers + benchmark.** The galaxy-brain UI is on the roadmap ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap)). Nothing in this README describes a feature that is not implemented.
 
 ## Example
 
@@ -51,6 +52,7 @@ Uninstall: `nexus uninstall` (removes the hook and the MCP entry) and `nexus uni
 |---|---|
 | `nexus_route(task, project?, budget?)` | Pick what to use for a task, with reasons |
 | `nexus_search(query, kind?)` | Plain ranked search |
+| `nexus_project(name or path)` | Project card: indexes, staleness, remembered entries, what to re-check |
 | `nexus_get(id)` | Full entry, relations, validity check |
 | `nexus_remember(title, summary, body?, kind?, project?, files?)` | Save a reusable experience/decision/knowledge |
 | `nexus_feedback(ids, useful)` | Tell NEXUS what helped (adjusts ranking) |
@@ -60,7 +62,11 @@ Uninstall: `nexus uninstall` (removes the hook and the MCP entry) and `nexus uni
 
 ## CLI
 
-`nexus sync | status | doctor | route | search | show | remember | capabilities [--redundant] | forget | restore-version | backup | restore | install | uninstall | mcp | hook`
+`nexus sync | status | doctor | route | search | show | project | bench | remember | capabilities [--redundant] | forget | restore-version | backup | restore | install | uninstall | mcp | hook`
+
+## Measuring it
+
+`nexus bench bench/local-tasks.json` compares the router with plain BM25 on labelled tasks (hit@1, hit@3, MRR, latency, estimated tokens). The bundled file is labelled for one real install (74 capabilities). Copy it and relabel it for yours. Results on that install (22 tasks): router hit@1 0.82 to 0.86 depending on corpus state, BM25 0.82, p50 latency ~2 ms. The remaining misses are synonyms ("todo" vs "task", "email" vs "gmail"), the documented limit of lexical matching.
 
 ## Privacy and safety
 

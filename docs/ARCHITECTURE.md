@@ -60,6 +60,38 @@ Why a relevance blend: relative BM25 alone always gives the best hit 1.0, even f
 - `similar_to` (auto:lexical): Jaccard over description terms ≥ 0.35. On a real 47-skill install, only one pair qualifies (two browser skills). Lexical similarity is a weak signal; embeddings are the planned upgrade, gated by a benchmark.
 - `related_to` (auto:mention): a description that names another capability (`"not for flashcards (study-cards)"`). This is high precision and free.
 
+### Providers (v0.2)
+
+`providers.py` points to external systems instead of copying them:
+
+| Source | What NEXUS stores | How |
+|---|---|---|
+| Cortex | `project:<name>` card: root, files/symbols, languages, "query with cortex_pack/ask" | `cortex list` + `cortex stats` (read-only, ~60 ms each) |
+| Graphify | graph path, node/edge counts, community names (as tags, so tasks find the project), `built_at_commit` vs git HEAD → **stale** flag + `graphify update` hint | parse `graphify-out/graph.json`, cached by mtime |
+| Project CLAUDE.md | `knowledge` pointer (ref + 300-char excerpt) | file read |
+| Claude Code auto-memory | `knowledge` pointer per memory file (name, description, type) | frontmatter |
+
+Project roots: config `project_roots`, Cortex roots, and Claude Code's known projects plus their direct children that contain a project marker (`.git`, `pyproject.toml`, `package.json`, `CLAUDE.md`, `graphify-out`…). The home directory and desktop scratch workspaces are skipped.
+
+`Store.reconcile(nodes, source)` is the single incremental-sync primitive: upsert what a source reports, flag what it no longer reports as `missing`.
+
+### Project understanding (scenarios 1–2)
+
+There is no separate cache format: understanding is stored as ordinary entries (`nexus_remember`, one per module/aspect, each with the files it was derived from). `project_card` re-hashes those files and splits entries into valid and stale, with the exact changed files. A change to `billing.py` invalidates "Billing" and "Architecture" but not "Routes". The agent re-checks only those parts.
+
+### Measured (bench/local-tasks.json, 22 tasks, one real install)
+
+| Variant | hit@1 |
+|---|---|
+| plain BM25 | 0.82 |
+| router v0.1 (BM25 + coverage) | 0.82 |
+| + IDF-weighted coverage | 0.73 (dropped) |
+| + name fragments match | 0.73 (dropped: "test", "claude" too generic) |
+| + full-name match (kept) | 0.86 |
+| same, after projects added to the corpus | 0.82 (one borderline task flips) |
+
+Honest reading: on capability routing, NEXUS's scoring is at best slightly ahead of BM25. Its value is elsewhere: redundancy filtering, explanations, staleness, project cards, experiences. Remaining misses are synonyms. That is the trigger for optional local embeddings.
+
 ## 3. Claude Code integration
 
 - MCP does not run anything at session start, so the wake-up uses the official `SessionStart` hook with `additionalContext` (WAKE → SYNC → ORIENT → READY). Measured: ~0.6 s, ~100 tokens, on 72 capabilities.
@@ -76,7 +108,7 @@ Local only. Read-only on Claude Code config except explicit `install`/`uninstall
 | Version | Scope | Done when |
 |---|---|---|
 | **0.1** (this) | store, capability registry, experiences, router, MCP, wake-up hook, CLI | 14 tests incl. scenarios 3–6 |
-| 0.2 | Providers: Cortex (`cortex pack/ask`), Graphify (`graph.json`), CC memory files; project understanding cache (scenario 1–2); routing benchmark with/without NEXUS | benchmark published |
+| **0.2** (this) | Providers: Cortex, Graphify, CLAUDE.md, CC memory; project cards (scenarios 1–2); routing benchmark vs BM25 | 21 tests, bench in README |
 | 0.3 | Local web UI on real data: Dashboard, Capability Explorer, Context Monitor (from `events`), Memory Inspector (edit/merge/restore) | e2e tests |
 | 0.4 | Galaxy / Neural / Cluster / Void views (brain-galaxy, animations bound to `events`) | |
 | 0.5 | Adaptation: learned weights, versioned and reversible; optional local embeddings; packaging + release | |

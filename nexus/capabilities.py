@@ -186,22 +186,7 @@ def sync(store: Store, claude_dir: Path, claude_json: Path, project_roots: list[
          redundancy_threshold: float = 0.35) -> dict:
     """Incremental: upsert what changed, flag vanished capabilities as 'missing' (never delete)."""
     caps, edges = discover(claude_dir, claude_json, project_roots)
-    ts = now()
-    report = {"created": [], "updated": [], "missing": [], "unchanged": 0}
-    for c in caps:
-        c["verified"] = ts
-        r = store.upsert(c, op="scan")
-        if r == "unchanged":
-            report["unchanged"] += 1
-        else:
-            report[r].append(c["id"])
-    found = {c["id"] for c in caps}
-    for n in store.db.execute("SELECT id FROM nodes WHERE source=? AND status!='missing'", (SOURCE,)).fetchall():
-        if n["id"] not in found:
-            store.set_status(n["id"], "missing", op="scan", missing_since=ts)
-            report["missing"].append(n["id"])
-    for src, dst, t in edges:
-        store.link(src, dst, t, source=SOURCE, confidence=1.0)
+    report = store.reconcile(caps, SOURCE, edges, op="scan")
 
     # Redundancy: lexical overlap of descriptions between capabilities that do "work"
     # (skills, commands, agents). shortcut: Jaccard on terms, upgrade to embeddings when the bench shows misses.
@@ -224,7 +209,7 @@ def sync(store: Store, claude_dir: Path, claude_json: Path, project_roots: list[
                     continue
                 if re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", text):
                     store.link(a["id"], b["id"], "related_to", source="auto:mention", confidence=0.9)
-    store.kv_set("last_capability_sync", ts)
+    store.kv_set("last_capability_sync", now())
     store.log("sync.capabilities", created=len(report["created"]), updated=len(report["updated"]),
               missing=len(report["missing"]), new_ids=report["created"][:50])
     return report

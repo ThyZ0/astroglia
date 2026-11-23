@@ -188,6 +188,26 @@ class Store:
         self.db.execute("UPDATE nodes SET uses=uses+?, successes=successes+? WHERE id=?", (uses, successes, node_id))
         self.db.commit()
 
+    def reconcile(self, nodes: list[dict], source: str, edges: list[tuple] = (), op: str = "sync") -> dict:
+        """Make the store match what a source currently reports: upsert, and flag vanished nodes
+        of that source as 'missing' (never delete). Returns created/updated/missing ids."""
+        ts = now()
+        report = {"created": [], "updated": [], "missing": [], "unchanged": 0}
+        for n in nodes:
+            r = self.upsert({**n, "source": source, "verified": ts}, op=op)
+            if r == "unchanged":
+                report["unchanged"] += 1
+            else:
+                report[r].append(n["id"])
+        found = {n["id"] for n in nodes}
+        for row in self.db.execute("SELECT id FROM nodes WHERE source=? AND status!='missing'", (source,)).fetchall():
+            if row["id"] not in found:
+                self.set_status(row["id"], "missing", op=op, missing_since=ts)
+                report["missing"].append(row["id"])
+        for src, dst, t in edges:
+            self.link(src, dst, t, source=source, confidence=1.0)
+        return report
+
     # ---------- edges ----------
     def link(self, src: str, dst: str, type: str, source: str, confidence: float = 0.7) -> None:
         if type not in EDGE_TYPES:

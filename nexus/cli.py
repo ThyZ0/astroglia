@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__, capabilities, config, experiences, router
+from . import __version__, capabilities, config, experiences, providers, router
 from .store import Store
 
 HOOK_MARK = "-m nexus hook"
@@ -136,6 +136,8 @@ def main(argv=None) -> int:
     r.add_argument("--budget", type=int, default=1200); r.add_argument("--kind", action="append")
     s = sub.add_parser("search"); s.add_argument("query"); s.add_argument("--kind"); s.add_argument("--limit", type=int, default=10)
     g = sub.add_parser("show", help="full entry + history"); g.add_argument("id")
+    pj = sub.add_parser("project", help="project card: providers + remembered entries and their validity")
+    pj.add_argument("ref", nargs="?", default=".", help="project name or a path inside it (default: current dir)")
     m = sub.add_parser("remember", help="save an experience/decision/knowledge")
     m.add_argument("title"); m.add_argument("summary"); m.add_argument("--body", default="")
     m.add_argument("--kind", default="experience", choices=experiences.MEMORY_KINDS); m.add_argument("--project")
@@ -177,10 +179,13 @@ def main(argv=None) -> int:
     st = Store(cfg.db_path)
     try:
         if a.cmd == "sync":
-            rep = capabilities.sync(st, cfg.claude_dir, cfg.claude_json, cfg.project_roots, cfg.redundancy_threshold)
-            ver = experiences.verify_all(st)
-            _out({"capabilities": {k: (v if isinstance(v, int) else len(v)) for k, v in rep.items()},
-                  "new": rep["created"][:30], "missing": rep["missing"], "stale": ver["stale"]})
+            rep = providers.sync_all(st, cfg)
+            count = lambda r: {k: (v if isinstance(v, int) else len(v)) for k, v in r.items()}
+            _out({"capabilities": count(rep["capabilities"]), "projects": count(rep["projects"]),
+                  "cc_memory": count(rep["cc_memory"]),
+                  "new": (rep["capabilities"]["created"] + rep["projects"]["created"] + rep["cc_memory"]["created"])[:40],
+                  "missing": rep["capabilities"]["missing"] + rep["projects"]["missing"] + rep["cc_memory"]["missing"],
+                  "stale": rep["stale"]})
         elif a.cmd == "status":
             _out({"db": str(cfg.db_path), "last_capability_sync": st.kv_get("last_capability_sync"), **st.stats(),
                   "recent": [{k: e[k] for k in ("ts", "kind")} for e in st.events(10)]})
@@ -194,6 +199,11 @@ def main(argv=None) -> int:
             if n is None:
                 _out(f"unknown id {a.id}"); return 1
             _out({"entry": n, "relations": st.edges(a.id), "history": st.history(a.id)[:10]})
+        elif a.cmd == "project":
+            card = providers.project_card(st, a.ref)
+            if card is None:
+                _out(f"unknown project {a.ref!r} (run `nexus sync`; projects come from Claude Code, Cortex and config roots)"); return 1
+            _out(card)
         elif a.cmd == "remember":
             _out(experiences.remember(st, a.title, a.summary, a.body, kind=a.kind, project=a.project, tags=a.tag,
                                       files=a.file, source="user"))

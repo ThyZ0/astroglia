@@ -33,6 +33,8 @@ def env(tmp_path, monkeypatch):
     skill(claude / "skills", "python-review", "Review Python code for bugs, style and test coverage before merging.")
     cj = write(tmp_path / ".claude.json", json.dumps({"mcpServers": {"db": {"type": "stdio", "command": "dbserver",
                                                                            "env": {"DB_PASSWORD": "hunter2-secret"}}}}))
+    from nexus import providers
+    monkeypatch.setattr(providers, "cortex_projects", lambda: [])  # never call the machine's real cortex
     home = tmp_path / "nexus"
     monkeypatch.setenv("NEXUS_HOME", str(home))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude))

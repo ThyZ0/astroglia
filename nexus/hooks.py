@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import capabilities, config, experiences, router
+from . import capabilities, config, providers, router
 from .store import Store
 
 
@@ -35,11 +35,14 @@ def manifest(store: Store, cfg: config.Config, cwd: str | None, sync_report: dic
                  + (f"; {len(verify_report['stale'])} stale (sources changed)" if verify_report.get("stale") else ""))
     if projects:
         lines.append("Projects: " + ", ".join(projects))
-    if cwd:
-        here = store.db.execute("SELECT COUNT(*) FROM nodes WHERE project IS NOT NULL AND ? LIKE '%' || project || '%'",
-                                (cwd,)).fetchone()[0]
-        if here:
-            lines.append(f"This directory has {here} remembered entries: call nexus_route with your task to get them.")
+    card = providers.project_card(store, cwd) if cwd else None
+    if card:
+        e = card["entries"]
+        prov = ", ".join(card["providers"]) or "no index"
+        stale_graph = " (Graphify graph STALE)" if card["providers"].get("graphify", {}).get("stale") else ""
+        lines.append(f"Current project: {card['project']['title']} [{prov}{stale_graph}]; "
+                     f"{len(e['active'])} valid / {len(e['stale'])} stale remembered entries. "
+                     f"nexus_project('{card['project']['title']}') before re-analysing it.")
     lines.append("Use: nexus_route(task) before non-trivial work (returns relevant experiences, skills, tools and why); "
                  "nexus_remember(...) after solving something reusable; nexus_feedback(ids, useful).")
     store.log("wake", elapsed_ms=elapsed_ms, new=len(new), missing=len(sync_report.get("missing", [])),
@@ -61,9 +64,9 @@ def session_start(payload: dict, cfg: config.Config | None = None) -> str:
         roots = list(cfg.project_roots)
         if payload.get("cwd") and (Path(payload["cwd"]) / ".mcp.json").exists():
             roots.append(payload["cwd"])
-        rep = capabilities.sync(store, cfg.claude_dir, cfg.claude_json, roots, cfg.redundancy_threshold)
-        ver = experiences.verify_all(store)
-        return manifest(store, cfg, payload.get("cwd"), rep, ver, int((time.perf_counter() - t0) * 1000))
+        rep = providers.sync_all(store, cfg, roots)
+        return manifest(store, cfg, payload.get("cwd"), rep["capabilities"], {"stale": rep["stale"]},
+                        int((time.perf_counter() - t0) * 1000))
     finally:
         store.close()
 

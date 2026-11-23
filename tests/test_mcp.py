@@ -8,7 +8,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 EXPECTED = {"nexus_route", "nexus_search", "nexus_get", "nexus_remember", "nexus_feedback", "nexus_revalidate",
-            "nexus_link", "nexus_capabilities", "nexus_status", "nexus_sync"}
+            "nexus_link", "nexus_capabilities", "nexus_status", "nexus_sync", "nexus_project"}
 
 
 def test_mcp_stdio_roundtrip(env):
