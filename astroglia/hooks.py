@@ -94,6 +94,59 @@ def prompt(payload: dict, cfg: config.Config | None = None) -> str | None:
         store.close()
 
 
+EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+
+
+def session_activity(transcript: str | Path) -> tuple[list[str], bool]:
+    """(files edited by tool calls, whether astroglia's remember tool was called) from a session transcript.
+    Reads only tool names and file paths; nothing from the transcript is stored."""
+    files, remembered = [], False
+    with open(transcript, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if '"tool_use"' not in line:
+                continue
+            try:
+                content = (json.loads(line).get("message") or {}).get("content")
+            except ValueError:
+                continue
+            for part in content if isinstance(content, list) else []:
+                if not isinstance(part, dict) or part.get("type") != "tool_use":
+                    continue
+                name = part.get("name", "")
+                if name in EDIT_TOOLS:
+                    f = (part.get("input") or {}).get("file_path") or (part.get("input") or {}).get("notebook_path")
+                    if f and f not in files:
+                        files.append(f)
+                elif name.endswith("astroglia__remember"):
+                    remembered = True
+    return files, remembered
+
+
+def stop(payload: dict, cfg: config.Config | None = None) -> dict | None:
+    """CONSOLIDATE: once per session, if work was done and nothing was saved, ask Claude to save what is reusable."""
+    cfg = cfg or config.load()
+    if not cfg.consolidate or payload.get("stop_hook_active") or not payload.get("transcript_path"):
+        return None
+    files, remembered = session_activity(payload["transcript_path"])
+    if remembered or len(files) < cfg.consolidate_min_files:
+        return None
+    store = Store(cfg.db_path)
+    try:
+        key = f"consolidated:{payload.get('session_id', '')}"
+        if store.kv_get(key):
+            return None
+        store.kv_set(key, "1")
+        store.log("consolidate.asked", files=len(files))
+    finally:
+        store.close()
+    shown = ", ".join(Path(f).name for f in files[:6]) + (f" (+{len(files) - 6})" if len(files) > 6 else "")
+    return {"decision": "block", "reason":
+            f"[Astroglia] This session edited {len(files)} files ({shown}) and saved nothing to memory. "
+            "If it produced something a future session should not have to rediscover (a fix and its cause, a decision "
+            "and why, how a module works), save it now with the astroglia `remember` tool, passing the files it depends "
+            "on so it can be flagged stale later. If nothing is worth keeping, simply finish. This reminder appears once."}
+
+
 def run(event: str) -> int:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
@@ -102,6 +155,11 @@ def run(event: str) -> int:
     try:
         if event == "session-start":
             _emit("SessionStart", session_start(payload))
+        elif event == "stop":
+            out = stop(payload)
+            if out:
+                sys.stdout.reconfigure(encoding="utf-8")
+                print(json.dumps(out, ensure_ascii=False))
         elif event == "prompt":
             out = prompt(payload)
             if out:

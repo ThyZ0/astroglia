@@ -29,7 +29,7 @@ def _settings_plan(cfg: config.Config, with_prompt_hook: bool) -> tuple[Path, di
     cur = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     new = json.loads(json.dumps(cur))
     hooks = new.setdefault("hooks", {})
-    wanted = {"SessionStart": ("session-start", 15)}
+    wanted = {"SessionStart": ("session-start", 15), "Stop": ("stop", 10)}
     if with_prompt_hook:
         wanted["UserPromptSubmit"] = ("prompt", 5)
     for event, (arg, timeout) in wanted.items():
@@ -152,7 +152,7 @@ def main(argv=None) -> int:
     ui = sub.add_parser("ui", help="open the local web interface"); ui.add_argument("--port", type=int, default=8765)
     ui.add_argument("--no-browser", action="store_true")
     sub.add_parser("mcp", help="run the MCP server (stdio)")
-    h = sub.add_parser("hook", help="Claude Code hook entry point"); h.add_argument("event", choices=["session-start", "prompt"])
+    h = sub.add_parser("hook", help="Claude Code hook entry point"); h.add_argument("event", choices=["session-start", "prompt", "stop"])
     i = sub.add_parser("install", help="register hooks + MCP in Claude Code"); i.add_argument("--yes", action="store_true")
     i.add_argument("--prompt-hook", action="store_true", help="also route every prompt (opt-in, costs context)")
     u = sub.add_parser("uninstall"); u.add_argument("--purge", action="store_true", help="also delete all Astroglia data"); u.add_argument("--yes", action="store_true")

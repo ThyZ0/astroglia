@@ -147,3 +147,28 @@ def test_deleted_source_file_keeps_entry_stale_and_blocks_revalidation(env):
     with pytest.raises(ValueError, match="no longer exist"):
         experiences.revalidate(env["store"], e["id"])
     assert experiences.verify(env["store"], e["id"])["status"] == "stale"
+
+
+def _transcript(tmp, tools):
+    lines = [json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": n, "input": i}]}}) for n, i in tools]
+    p = tmp / "t.jsonl"; p.write_text("\n".join(lines), encoding="utf-8")
+    return str(p)
+
+
+def test_consolidation_asks_once_after_real_work(env):
+    t = _transcript(env["tmp"], [("Edit", {"file_path": "a.py"}), ("Write", {"file_path": "b.py"}), ("Read", {"file_path": "c.py"})])
+    out = hooks.stop({"transcript_path": t, "session_id": "s1"}, env["cfg"])
+    assert out["decision"] == "block" and "edited 2 files" in out["reason"] and "remember" in out["reason"]
+    assert hooks.stop({"transcript_path": t, "session_id": "s1"}, env["cfg"]) is None          # once per session
+    assert hooks.stop({"transcript_path": t, "session_id": "s2", "stop_hook_active": True}, env["cfg"]) is None  # no loop
+
+
+def test_consolidation_stays_quiet_when_not_needed(env):
+    small = _transcript(env["tmp"], [("Edit", {"file_path": "a.py"})])
+    assert hooks.stop({"transcript_path": small, "session_id": "s3"}, env["cfg"]) is None      # below threshold
+    saved = _transcript(env["tmp"], [("Edit", {"file_path": "a.py"}), ("Edit", {"file_path": "b.py"}),
+                                     ("mcp__astroglia__remember", {"title": "x"})])
+    assert hooks.stop({"transcript_path": saved, "session_id": "s4"}, env["cfg"]) is None      # already saved
+    env["cfg"].consolidate = False
+    big = _transcript(env["tmp"], [("Edit", {"file_path": f"{i}.py"}) for i in range(5)])
+    assert hooks.stop({"transcript_path": big, "session_id": "s5"}, env["cfg"]) is None        # disabled by config

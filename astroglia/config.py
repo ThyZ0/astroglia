@@ -27,6 +27,8 @@ class Config:
     half_life_days: float = 90.0
     max_per_kind: int = 3
     project_roots: list[str] = field(default_factory=list)
+    consolidate: bool = True          # Stop hook: ask once per session to save reusable knowledge
+    consolidate_min_files: int = 2    # ... only when the session edited at least this many files
 
     @property
     def db_path(self) -> Path:
@@ -40,7 +42,8 @@ def load(home: str | os.PathLike | None = None) -> Config:
     f = h / "config.toml"
     if f.exists():
         data = tomllib.loads(f.read_text(encoding="utf-8"))
-        for key in ("redundancy_threshold", "min_score", "half_life_days", "max_per_kind", "project_roots"):
+        for key in ("redundancy_threshold", "min_score", "half_life_days", "max_per_kind", "project_roots",
+                    "consolidate", "consolidate_min_files"):
             if key in data:
                 setattr(cfg, key, data[key])
         for key in ("claude_dir", "claude_json"):
