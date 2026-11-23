@@ -172,3 +172,21 @@ def test_consolidation_stays_quiet_when_not_needed(env):
     env["cfg"].consolidate = False
     big = _transcript(env["tmp"], [("Edit", {"file_path": f"{i}.py"}) for i in range(5)])
     assert hooks.stop({"transcript_path": big, "session_id": "s5"}, env["cfg"]) is None        # disabled by config
+
+
+def test_value_report_counts_what_was_served(env):
+    from astroglia import metrics
+    s = env["store"]
+    src = write(env["tmp"] / "m.py", "x = 1\n")
+    experiences.remember(s, "Websocket reconnect fix", "Retry with backoff after close event", files=[str(src)])
+    experiences.remember(s, "Websocket reconnect fix again", "Retry with backoff after the close event fires")
+    router.route(s, env["cfg"], "websocket reconnect")
+    src.write_text("x = 2\n", encoding="utf-8")
+    router.route(s, env["cfg"], "websocket reconnect")
+    s.log("served", id="knowledge:brief:p", kind="brief", via="wake", bytes=4000)
+    v = metrics.value(s)
+    m = v["measured"]
+    assert m["routings"] == 2 and m["memory_served"] >= 3 and m["stale_warnings"] >= 1
+    assert m["memories_saved"] == 2 and m["duplicates_flagged"] == 1 and m["briefs_served"] == 1
+    assert v["estimated"]["tokens_of_rereading_avoided_by_briefs"] == 1000 and "formula" in v["estimated"]
+    assert metrics.value(s, days=1)["measured"]["routings"] == 2

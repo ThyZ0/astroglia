@@ -118,6 +118,7 @@ def remember(store: Store, title: str, summary: str, body: str = "", kind: str =
     if not node_id:
         sim = similar_entries(store, title, summary, exclude=nid)
         if sim:
+            store.log("memory.similar", id=nid, similar=[x["id"] for x in sim])
             out["similar_existing"] = sim
             out["hint"] = "Similar entries already exist: if this is the same knowledge, update one of them (node_id) and forget this one."
     return out

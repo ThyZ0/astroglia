@@ -109,6 +109,8 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
     result["estimated_tokens"] = used
     result["route_id"] = None if not log else store.log("route", task=task[:300], project=project,
                                    selected=[c["id"] for c in chosen],
+                                   served=[{"id": c["id"], "kind": c["kind"],
+                                            "stale": any(w.startswith("STALE") for w in c["warnings"])} for c in chosen],
                                    rejected=[{"id": r["id"], "reason": r["reason"]} for r in result["rejected"][:30]],
                                    estimated_tokens=used)
     return result

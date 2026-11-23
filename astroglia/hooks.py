@@ -46,6 +46,7 @@ def manifest(store: Store, cfg: config.Config, cwd: str | None, sync_report: dic
         b = store.get(f"knowledge:brief:{card['project']['title']}")
         if b and b["status"] == "active":
             lines.append(f"Project brief (from its manifests, current): {b['summary'][:300]}. Full brief: get('{b['id']}').")
+            store.log("served", id=b["id"], kind="brief", via="wake", bytes=b["meta"].get("bytes_summarized", 0))
     lines.append("Use the astroglia MCP tools: route(task) before non-trivial work (relevant experiences, skills, tools, and why); "
                  "remember(...) after solving something reusable; feedback(ids, useful).")
     store.log("wake", elapsed_ms=elapsed_ms, new=len(new), missing=len(sync_report.get("missing", [])),

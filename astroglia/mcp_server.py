@@ -47,6 +47,8 @@ def build(cfg: config.Config | None = None) -> MCPServer:
             n["validity"] = experiences.verify(store, id)
             n = {**store.get(id), "validity": n["validity"]}
         n["relations"] = store.edges(id)
+        store.log("served", id=id, kind="brief" if id.startswith("knowledge:brief:") else n["kind"], via="get",
+                  bytes=n["meta"].get("bytes_summarized", 0), stale=n["status"] == "stale")
         return {"notice": NOTICE, "entry": n}
 
     @mcp.tool(name="remember")
@@ -96,8 +98,9 @@ def build(cfg: config.Config | None = None) -> MCPServer:
     @mcp.tool(name="status")
     async def tool_status() -> dict:
         """Health: counts, last sync, recent events."""
+        from . import metrics
         return {"db": str(cfg.db_path), "last_capability_sync": store.kv_get("last_capability_sync"),
-                **store.stats(), "recent": store.events(10)}
+                **store.stats(), "value_last_30_days": metrics.value(store, 30), "recent": store.events(10)}
 
     @mcp.tool(name="sync")
     async def tool_sync() -> dict:
@@ -113,6 +116,9 @@ def build(cfg: config.Config | None = None) -> MCPServer:
         and whether they are stale, and every remembered entry with its validity. Call before re-analysing a
         project: valid entries can be reused, stale ones list exactly which files changed."""
         card = providers.project_card(store, ref)
+        if card:
+            store.log("served", id=card["project"]["id"], kind="project_card", via="project",
+                      valid=len(card["entries"]["active"]), stale=len(card["entries"]["stale"]))
         return {"notice": NOTICE, **card} if card else {"error": f"unknown project {ref!r}; try sync"}
 
     return mcp

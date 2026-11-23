@@ -123,6 +123,9 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
         if path == "/api/events":
             after = one("after")
             return store.events(int(one("limit", "100")), kind=one("kind"), after=int(after) if after else None)
+        if path == "/api/value":
+            from . import metrics
+            return metrics.value(store, int(one("days")) if one("days") else None)
         if path == "/api/graph":
             return graph(store)
         if path == "/api/voids":

@@ -131,6 +131,8 @@ def main(argv=None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("sync", help="scan capabilities and verify memories (incremental)")
     sub.add_parser("status", help="counts and recent events")
+    vl = sub.add_parser("value", help="what Astroglia served (measured) and saved (estimated)")
+    vl.add_argument("--days", type=int)
     sub.add_parser("doctor", help="diagnose installation")
     r = sub.add_parser("route", help="select resources for a task"); r.add_argument("task"); r.add_argument("--project")
     r.add_argument("--budget", type=int, default=1200); r.add_argument("--kind", action="append")
@@ -201,6 +203,9 @@ def main(argv=None) -> int:
         elif a.cmd == "status":
             _out({"db": str(cfg.db_path), "last_capability_sync": st.kv_get("last_capability_sync"), **st.stats(),
                   "recent": [{k: e[k] for k in ("ts", "kind")} for e in st.events(10)]})
+        elif a.cmd == "value":
+            from . import metrics
+            _out(metrics.value(st, a.days))
         elif a.cmd == "route":
             _out(router.route(st, cfg, a.task, project=a.project, budget=a.budget, kinds=a.kind))
         elif a.cmd == "search":
