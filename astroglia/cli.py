@@ -194,7 +194,7 @@ def main(argv=None) -> int:
             rep = providers.sync_all(st, cfg)
             count = lambda r: {k: (v if isinstance(v, int) else len(v)) for k, v in r.items()}
             _out({"capabilities": count(rep["capabilities"]), "projects": count(rep["projects"]),
-                  "cc_memory": count(rep["cc_memory"]),
+                  "cc_memory": count(rep["cc_memory"]), "briefs": count(rep["briefs"]),
                   "new": (rep["capabilities"]["created"] + rep["projects"]["created"] + rep["cc_memory"]["created"])[:40],
                   "missing": rep["capabilities"]["missing"] + rep["projects"]["missing"] + rep["cc_memory"]["missing"],
                   "stale": rep["stale"]})

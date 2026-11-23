@@ -62,7 +62,8 @@ def test_claude_code_memory_files_are_indexed_as_pointers(env, monkeypatch):
 def test_scenario1_project_understanding_reused_across_sessions(env, monkeypatch):
     root = setup(env, monkeypatch)
     providers.sync(env["store"], env["cfg"])
-    assert "No remembered understanding" in providers.project_card(env["store"], "planner")["advice"]
+    card = providers.project_card(env["store"], "planner")
+    assert [e["id"] for e in card["entries"]["active"]] == ["knowledge:brief:planner"]  # automatic, before any analysis
     # First session: the agent analyses the project once, one entry per aspect, each tied to its files.
     experiences.remember(env["store"], "Planner architecture", "Two modules: routes (optimiser) and billing.",
                          kind="knowledge", project="planner", files=[str(root / "src" / "routes.py"), str(root / "src" / "billing.py")])
@@ -75,7 +76,7 @@ def test_scenario1_project_understanding_reused_across_sessions(env, monkeypatch
     env["store"] = Store(env["cfg"].db_path)
     card = providers.project_card(env["store"], str(root / "src"))  # a path inside the project works too
     assert card["project"]["id"] == "project:planner"
-    assert len(card["entries"]["active"]) == 3 and card["entries"]["stale"] == []
+    assert len(card["entries"]["active"]) == 4 and card["entries"]["stale"] == []  # 3 remembered + the brief
     assert "no re-analysis needed" in card["advice"]
 
 
@@ -88,7 +89,7 @@ def test_scenario2_changed_file_invalidates_only_dependent_entries(env, monkeypa
     (root / "src" / "billing.py").write_text("def invoice(vat): ...\n", encoding="utf-8")
     card = providers.project_card(env["store"], "planner")
     assert sorted(e["title"] for e in card["entries"]["stale"]) == ["Architecture", "Billing"]
-    assert [e["title"] for e in card["entries"]["active"]] == ["Routes"]
+    assert sorted(e["title"] for e in card["entries"]["active"]) == ["Routes", "planner: project brief"]
     assert card["changed_files"] == [str((root / "src" / "billing.py").resolve())]
     assert "Re-check only the stale ones (1 changed files)" in card["advice"]
 
@@ -111,3 +112,27 @@ def test_same_folder_name_in_two_places_gives_two_projects(env, monkeypatch):
     providers.sync(env["store"], env["cfg"])
     assert env["store"].get("project:planner")["meta"]["root"] == str(first)
     assert env["store"].get("project:elsewhere/planner")["meta"]["root"] == str(other)
+
+
+def test_brief_is_built_from_manifests_and_rebuilt_only_when_they_change(env, monkeypatch):
+    root = setup(env, monkeypatch)
+    write(root / "package.json", json.dumps({"name": "planner-web", "scripts": {"dev": "vite", "test": "vitest run"},
+                                              "dependencies": {"react": "19", "vite": "6"}}))
+    write(root / "README.md", "# Planner\n\nSchedules ambulance rounds and optimises routes for medical transport.\n")
+    rep = providers.sync(env["store"], env["cfg"])
+    assert rep["briefs"]["built"] == ["knowledge:brief:planner"]
+    b = env["store"].get("knowledge:brief:planner")
+    assert "react" in b["summary"] and "npm run test" in b["body"] and "ambulance" in b["body"]
+    assert "src/" in b["body"] and b["meta"]["bytes_summarized"] > 0
+    assert providers.sync(env["store"], env["cfg"])["briefs"]["built"] == []  # nothing changed: not rebuilt
+    write(root / "package.json", json.dumps({"name": "planner-web", "scripts": {"e2e": "playwright test"}, "dependencies": {}}))
+    assert providers.sync(env["store"], env["cfg"])["briefs"]["built"] == ["knowledge:brief:planner"]
+    assert "npm run test" not in env["store"].get("knowledge:brief:planner")["body"]
+
+
+def test_session_start_puts_current_project_brief_in_manifest(env, monkeypatch):
+    from astroglia import hooks
+    root = setup(env, monkeypatch)
+    write(root / "pyproject.toml", '[project]\nname = "planner"\nrequires-python = ">=3.11"\ndependencies = ["fastapi", "pytest"]\n')
+    out = hooks.session_start({"cwd": str(root / "src")}, env["cfg"])
+    assert "Project brief" in out and "fastapi" in out

@@ -10,7 +10,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes(
@@ -89,7 +89,9 @@ class Store:
             raise RuntimeError(f"Database schema v{v} is newer than this Astroglia (v{SCHEMA_VERSION}); upgrade Astroglia.")
         if v < 1:
             self.db.executescript(_SCHEMA)
-        # future migrations: `if v < 2: ...`
+        if v < 2:  # hash cache: a file whose size and mtime are unchanged is not re-read
+            self.db.executescript("CREATE TABLE IF NOT EXISTS file_cache(path TEXT PRIMARY KEY, size INTEGER NOT NULL, "
+                                  "mtime_ns INTEGER NOT NULL, sha256 TEXT NOT NULL)")
         self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.db.commit()
 

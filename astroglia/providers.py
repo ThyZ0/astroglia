@@ -22,6 +22,8 @@ from .config import Config
 from .store import Store
 
 SOURCE_PROJECTS = "provider:projects"
+SOURCE_BRIEF = "provider:brief"
+BRIEF_MAX_AGE_DAYS = 7  # layout and git hot files drift without manifest changes
 SOURCE_MEMORY = "provider:cc-memory"
 MARKERS = (".git", "pyproject.toml", "package.json", "Cargo.toml", "go.mod", "pom.xml", "build.gradle",
            "CLAUDE.md", "graphify-out")
@@ -192,20 +194,62 @@ def discover_cc_memory(cfg: Config) -> list[dict]:
     return out
 
 
-def sync(store: Store, cfg: Config) -> dict:
+def _brief_is_current(store: Store, node: dict) -> bool:
+    from datetime import datetime, timezone
+    fp = node.get("fingerprint") or {}
+    age = (datetime.now(timezone.utc) - datetime.fromisoformat(node["updated"])).days
+    return age < BRIEF_MAX_AGE_DAYS and all(experiences.cached_sha256(store, Path(f)) == h for f, h in fp.items())
+
+
+def sync_briefs(store: Store, projects: list[dict], budget_s: float | None = None, first: str | None = None) -> dict:
+    """Keep one `knowledge:brief:<project>` per project, rebuilt only when its sources changed.
+    budget_s caps the time spent building (hooks); projects not reached keep their previous brief."""
+    import time
+    from . import brief
+    t0, nodes, edges, built = time.perf_counter(), [], [], []
+    order = sorted(projects, key=lambda p: p["title"] != first)  # current project first
+    for p in order:
+        bid, root = f"knowledge:brief:{p['title']}", Path(p["meta"]["root"])
+        old = store.get(bid)
+        if old and (_brief_is_current(store, old) or (budget_s is not None and time.perf_counter() - t0 > budget_s)):
+            nodes.append({k: old[k] for k in ("id", "kind", "title", "summary", "body", "ref", "project", "tags",
+                                              "confidence", "status", "fingerprint", "meta")})
+        elif budget_s is None or time.perf_counter() - t0 <= budget_s:
+            b = brief.build(root)
+            if not b:
+                continue
+            nodes.append({"id": bid, "kind": "knowledge", "title": f"{p['title']}: project brief", "summary": b["summary"],
+                          "body": b["body"], "ref": str(root), "project": p["title"], "tags": "brief project-brief overview",
+                          "confidence": 0.95, "status": "active",
+                          "fingerprint": experiences.fingerprint(b["files"], store) or None,
+                          "meta": {"bytes_summarized": b["bytes_summarized"], "sources": b["files"]}})
+            built.append(bid)
+        edges.append((bid, f"project:{p['title']}", "belongs_to"))
+    rep = store.reconcile(nodes, SOURCE_BRIEF, [e for e in edges if any(n["id"] == e[0] for n in nodes)], op="brief")
+    rep["built"] = built
+    return rep
+
+
+def sync(store: Store, cfg: Config, brief_budget_s: float | None = None, current: str | None = None) -> dict:
     nodes, edges = discover_projects(cfg, store)
     proj = store.reconcile(nodes, SOURCE_PROJECTS, edges, op="provider")
     mem = store.reconcile(discover_cc_memory(cfg), SOURCE_MEMORY, op="provider")
-    store.log("sync.providers", projects=len(nodes), new=proj["created"] + mem["created"],
-              missing=proj["missing"] + mem["missing"])
-    return {"projects": proj, "cc_memory": mem}
+    current_name = None
+    if current:
+        card = project_card(store, current)
+        current_name = card["project"]["title"] if card else None
+    briefs = sync_briefs(store, [n for n in nodes if n["kind"] == "project"], brief_budget_s, current_name)
+    store.log("sync.providers", projects=len(nodes), new=proj["created"] + mem["created"] + briefs["created"],
+              missing=proj["missing"] + mem["missing"], briefs_built=briefs["built"])
+    return {"projects": proj, "cc_memory": mem, "briefs": briefs}
 
 
-def sync_all(store: Store, cfg: Config, extra_roots: list[str] = ()) -> dict:
+def sync_all(store: Store, cfg: Config, extra_roots: list[str] = (), brief_budget_s: float | None = None,
+             current: str | None = None) -> dict:
     """Everything a session start or `astroglia sync` needs, incremental."""
     caps = capabilities.sync(store, cfg.claude_dir, cfg.claude_json, list(cfg.project_roots) + list(extra_roots),
                              cfg.redundancy_threshold)
-    prov = sync(store, cfg)
+    prov = sync(store, cfg, brief_budget_s, current)
     ver = experiences.verify_all(store)
     return {"capabilities": caps, **prov, "stale": ver["stale"]}
 

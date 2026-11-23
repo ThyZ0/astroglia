@@ -43,6 +43,9 @@ def manifest(store: Store, cfg: config.Config, cwd: str | None, sync_report: dic
         lines.append(f"Current project: {card['project']['title']} [{prov}{stale_graph}]; "
                      f"{len(e['active'])} valid / {len(e['stale'])} stale remembered entries. "
                      f"project('{card['project']['title']}') before re-analysing it.")
+        b = store.get(f"knowledge:brief:{card['project']['title']}")
+        if b and b["status"] == "active":
+            lines.append(f"Project brief (from its manifests, current): {b['summary'][:300]}. Full brief: get('{b['id']}').")
     lines.append("Use the astroglia MCP tools: route(task) before non-trivial work (relevant experiences, skills, tools, and why); "
                  "remember(...) after solving something reusable; feedback(ids, useful).")
     store.log("wake", elapsed_ms=elapsed_ms, new=len(new), missing=len(sync_report.get("missing", [])),
@@ -64,7 +67,7 @@ def session_start(payload: dict, cfg: config.Config | None = None) -> str:
         roots = list(cfg.project_roots)
         if payload.get("cwd") and (Path(payload["cwd"]) / ".mcp.json").exists():
             roots.append(payload["cwd"])
-        rep = providers.sync_all(store, cfg, roots)
+        rep = providers.sync_all(store, cfg, roots, brief_budget_s=3.0, current=payload.get("cwd"))
         return manifest(store, cfg, payload.get("cwd"), rep["capabilities"], {"stale": rep["stale"]},
                         int((time.perf_counter() - t0) * 1000))
     finally:
