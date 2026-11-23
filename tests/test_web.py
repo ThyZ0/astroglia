@@ -109,7 +109,8 @@ def test_reveal_only_opens_recorded_existing_paths(server, env, monkeypatch):
     monkeypatch.setattr(web.subprocess, "Popen", lambda args: calls.append(args))
     f = env["tmp"] / "note.md"; f.write_text("x", encoding="utf-8")
     env["store"].upsert({"id": "knowledge:x", "kind": "knowledge", "title": "x", "source": "test", "ref": str(f)})
-    assert server("/api/reveal", {"id": "knowledge:x"})[0] == 200 and str(f) in calls[0]
+    assert server("/api/reveal", {"id": "knowledge:x"})[0] == 200
+    assert str(f) in calls[0] or str(f.parent) in calls[0]  # Linux opens the folder: xdg-open cannot select a file
     assert server("/api/reveal", {"id": "knowledge:unknown"})[0] == 404
     f.unlink()
     assert server("/api/reveal", {"id": "knowledge:x"})[0] == 404 and len(calls) == 1
