@@ -5,7 +5,7 @@
 <p align="center"><b>Claude Code already has dozens of skills, plugins and MCP servers, and it re-discovers your projects every session.<br>
 Astroglia tells it which resources fit the task, what it already learned, and whether that is still true.</b></p>
 
-<p align="center">Local · no LLM calls · no cloud · Apache-2.0</p>
+<p align="center">Local · no LLM calls · no cloud · Apache-2.0 · <a href="README.fr.md">Français</a></p>
 
 ![The Astroglia galaxy: capabilities on the left hemisphere, memory and projects on the right](docs/images/galaxy.png)
 
