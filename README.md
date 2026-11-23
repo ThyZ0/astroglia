@@ -97,6 +97,16 @@ On one real install (74 capabilities, 22 labelled tasks in `bench/local-tasks.js
 
 On capability routing, Astroglia is slightly ahead of plain BM25. Its main gains are elsewhere: fewer, explained results, staleness, briefs. The remaining misses are synonyms ("todo" vs "task"), the known limit of lexical matching.
 
+Value scenarios (`python bench/value.py <demo-dir>`; assumptions printed with the results):
+
+| Scenario | Without Astroglia | Plain notes file + keyword search | Astroglia |
+|---|---|---|---|
+| Find the past fix for 4 questions (demo) | re-derive | right note found 1/4 | **found first 4/4** |
+| Know which notes are outdated (demo, 2 stale) | n/a | 0 flagged | **2 flagged** |
+| Get oriented in 9 real projects (tokens, est.) | 41,145 (18 file reads) | n/a | **2,157** with full briefs (9 reads), **326** with the manifest line alone (0 reads) |
+
+The "without" baseline lists each project's whole tree and reads its README and manifests once; a more frugal agent would read less, so the real saving lies between the two. On tiny projects (the demo), a full brief can cost more than reading the files directly: the session-manifest line is where the saving always holds.
+
 Load (`python bench/load.py`, synthetic stores): routing over 20,500 entries in 43 ms (median); freshness check of 500 file-backed entries in 71 ms when unchanged (989 ms before the batched check); the galaxy renders 20,000 stars and 40,000 relations at about 70 frames/s in headless Chrome, with a 0.6 MB gzipped payload.
 
 `astroglia value` reports what was actually served on your machine (briefs, memory entries, stale warnings, duplicates flagged), separated from estimates.
