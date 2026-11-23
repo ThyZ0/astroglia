@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "astroglia": { "command": "astroglia", "args": ["mcp"] }
+  }
+}

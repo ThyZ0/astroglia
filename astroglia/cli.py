@@ -111,10 +111,16 @@ def cmd_doctor(cfg, a):
     except Exception as e:
         check("database + FTS5", False, f"{type(e).__name__}: {e}")
     settings = cfg.claude_dir / "settings.json"
+    installed = cfg.claude_dir / "plugins" / "installed_plugins.json"
+    as_plugin = installed.exists() and any(k.startswith("astroglia@") for k in
+                                           json.loads(installed.read_text(encoding="utf-8")).get("plugins", {}))
     hooked = settings.exists() and HOOK_MARK in settings.read_text(encoding="utf-8")
-    check("SessionStart hook installed", hooked, "run `astroglia install --yes`" if not hooked else "")
+    check("SessionStart hook installed", hooked or as_plugin,
+          "via the Claude Code plugin" if as_plugin else "" if hooked else "run `astroglia install --yes` or install the plugin")
+    if hooked and as_plugin:
+        check("not installed twice", False, "both the plugin and `astroglia install`: run `astroglia uninstall` to keep the plugin")
     cj = json.loads(cfg.claude_json.read_text(encoding="utf-8")) if cfg.claude_json.exists() else {}
-    check("MCP server registered", "astroglia" in (cj.get("mcpServers") or {}), "")
+    check("MCP server registered", "astroglia" in (cj.get("mcpServers") or {}) or as_plugin, "via the plugin" if as_plugin else "")
     for tool in ("claude", "cortex", "graphify"):
         check(f"{tool} on PATH (optional)", shutil.which(tool), shutil.which(tool) or "not found")
     errlog = cfg.home / "hook-errors.log"

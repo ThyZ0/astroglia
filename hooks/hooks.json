@@ -1,0 +1,7 @@
+{
+  "description": "Astroglia: session manifest at start, one consolidation reminder at the end of real work. Both fail open.",
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "astroglia hook session-start", "timeout": 15 }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "astroglia hook stop", "timeout": 10 }] }]
+  }
+}

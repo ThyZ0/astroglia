@@ -35,14 +35,26 @@ Astroglia complements the tools around it instead of replacing them.
 
 ## Quick start
 
-Requires Python ≥ 3.11 and Claude Code.
+Requires Python ≥ 3.11 and Claude Code. First install the `astroglia` command:
 
 ```bash
 pipx install git+https://github.com/ThyZ0/astroglia
-astroglia install          # dry run: prints exactly what will change
-astroglia install --yes    # SessionStart + Stop hooks (settings.json backed up) and the MCP server
-astroglia doctor
 ```
+
+Then pick **one** way to connect it to Claude Code (not both, or the hooks run twice):
+
+```text
+# A. As a Claude Code plugin (recommended): run inside Claude Code
+/plugin install astroglia --marketplace ThyZ0/astroglia
+```
+
+```bash
+# B. Without the plugin system: edits ~/.claude/settings.json (backed up) and registers the MCP server
+astroglia install          # dry run: prints exactly what will change
+astroglia install --yes
+```
+
+`astroglia doctor` checks either setup.
 
 Restart Claude Code. Each session then starts with a short manifest. This one is the real output on the demo dataset, opened in `acme-shop`:
 

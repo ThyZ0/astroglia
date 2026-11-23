@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "astroglia",
+  "description": "Astroglia: capability routing, verified memory and project briefs for Claude Code.",
+  "owner": { "name": "ThyZ0", "url": "https://github.com/ThyZ0" },
+  "plugins": [
+    {
+      "name": "astroglia",
+      "description": "Tells Claude which skills and tools fit the task, what it already learned, and whether that is still true.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
