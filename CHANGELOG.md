@@ -2,6 +2,16 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [0.5.0] - unreleased
+### Added
+- Galaxy keyboard control (arrows rotate, +/- zoom, Esc closes the panel); "skip to content" link.
+- RELEASING.md with the release checklist and open pre-release decisions.
+- Robustness tests: newer database refused, unreadable config, busy port, 5000-entry routing under 0.5 s.
+### Fixed
+- Muted text contrast raised to WCAG AA (4.0:1 -> 4.8:1 on cards).
+- `nexus ui` on a busy port and a broken `config.toml` now print a message instead of a traceback.
+- `nexus uninstall` always backs up settings.json, even when the backups folder does not exist yet.
+
 ## [0.4.0] - unreleased
 ### Added
 - Brain-galaxy views: Galaxy (home), Neural, Clusters, Voids. Animations driven only by the event log; reduced-motion support; palette validated for colour-vision deficiencies.

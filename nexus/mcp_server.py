@@ -20,7 +20,7 @@ def build(cfg: config.Config | None = None) -> MCPServer:
     cfg = cfg or config.load()
     store = Store(cfg.db_path)
     # Tools are async on purpose: they run on the event loop thread, which owns the SQLite connection.
-    mcp = MCPServer("nexus", instructions=INSTRUCTIONS, version="0.4.0")
+    mcp = MCPServer("nexus", instructions=INSTRUCTIONS, version="0.5.0")
 
     @mcp.tool()
     async def nexus_route(task: str, project: str | None = None, budget: int = 1200, kinds: list[str] | None = None) -> dict:

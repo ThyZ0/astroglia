@@ -12,7 +12,7 @@ NEXUS is a local cognitive layer for Claude Code (and, later, other agents):
 
 It complements, not replaces, code-level tools such as Cortex (AstroQuest) and [Graphify](https://graphify.com): those index *code*. NEXUS indexes *what the agent can do and what it already learned*.
 
-> Status: **v0.4, core + providers + benchmark + local web UI with the brain-galaxy views.** The galaxy-brain UI is on the roadmap ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap)). Nothing in this README describes a feature that is not implemented.
+> Status: **v0.5, feature-complete for a first release; tested on Windows** (Linux/macOS via CI before release, see [RELEASING.md](RELEASING.md)). The galaxy-brain UI is on the roadmap ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap)). Nothing in this README describes a feature that is not implemented.
 
 ## Example
 

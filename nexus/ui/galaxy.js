@@ -66,8 +66,9 @@ views.galaxy = async () => {
   setView(loading());
   const g = await loadGraph(true);
   $view.classList.add("bleed");
-  const canvas = h("canvas.galaxy", { role: "img", "aria-label":
-    `Galaxy of ${g.nodes.length} entries and ${g.edges.length} relations. The same entries are listed in Capabilities, Memory and Projects.` });
+  const canvas = h("canvas.galaxy", { role: "img", tabindex: 0, "aria-label":
+    `Galaxy of ${g.nodes.length} entries and ${g.edges.length} relations. Arrow keys rotate, plus and minus zoom. ` +
+    "The same entries are listed as text in Capabilities, Memory, Projects and Voids." });
   const search = h("input", { type: "search", placeholder: "Find a star", "aria-label": "Highlight entries by name" });
   const rotateBtn = h("button.btn.ghost.small", { type: "button", "aria-pressed": String(!reduceMotion) }, "Rotate");
   const voidSel = h("select", { "aria-label": "Highlight weak zones" }, h("option", { value: "" }, "Weak zones: off"));
@@ -231,6 +232,14 @@ views.galaxy = async () => {
   canvas.addEventListener("pointerup", () => { if (drag && !drag[4]) select(hover); drag = null; });
   canvas.addEventListener("dblclick", () => hover && (location.hash = `#/neural?id=${encodeURIComponent(hover.id)}`));
   canvas.addEventListener("wheel", (e) => { e.preventDefault(); cam.zoom = Math.max(0.5, Math.min(4, cam.zoom * Math.exp(-e.deltaY * 0.001))); lastMove = now(); if (reduceMotion) draw(now()); }, { passive: false });
+  canvas.addEventListener("keydown", (e) => {
+    const k = { ArrowLeft: [-0.12, 0, 1], ArrowRight: [0.12, 0, 1], ArrowUp: [0, -0.1, 1], ArrowDown: [0, 0.1, 1], "+": [0, 0, 1.15], "=": [0, 0, 1.15], "-": [0, 0, 1 / 1.15] }[e.key];
+    if (e.key === "Escape") return select(null);
+    if (!k) return;
+    e.preventDefault();
+    cam.yaw += k[0]; cam.pitch = Math.max(-1.2, Math.min(1.2, cam.pitch + k[1])); cam.zoom = Math.max(0.5, Math.min(4, cam.zoom * k[2]));
+    lastMove = now(); if (reduceMotion) draw(now());
+  });
   rotateBtn.addEventListener("click", () => { cam.auto = !cam.auto; rotateBtn.setAttribute("aria-pressed", String(cam.auto)); });
   search.addEventListener("input", () => {
     const q = search.value.trim().toLowerCase();

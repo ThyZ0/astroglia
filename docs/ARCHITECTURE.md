@@ -128,4 +128,5 @@ Local only. Read-only on Claude Code config except explicit `install`/`uninstall
 | **0.2** (this) | Providers: Cortex, Graphify, CLAUDE.md, CC memory; project cards (scenarios 1–2); routing benchmark vs BM25 | 21 tests, bench in README |
 | **0.3** (this) | Local web UI on real data (`nexus ui`): Dashboard, Context Monitor, Capabilities, Memory (edit/merge/link/restore), Projects. Stdlib HTTP server, no build step | 26 tests + scripted browser walkthrough |
 | **0.4** (this) | Galaxy / Neural / Cluster / Void views. Canvas 2D projection, no 3D library; animations from `events` only | 27 tests + scripted walkthrough with a real routing event |
-| 0.5 | Adaptation: learned weights, versioned and reversible; optional local embeddings; packaging + release | |
+| **0.5** (this) | Stabilisation: clean-wheel install test, failure modes (bad config, busy port, newer DB), 5000-entry performance test, WCAG contrast fix, galaxy keyboard control, release procedure | 32 tests |
+| next | Learned ranking weights (versioned, reversible); optional local embeddings if the bench shows synonym misses matter | bench |

@@ -224,9 +224,9 @@ def make_handler(store: Store, cfg: config.Config, token: str, port: int):
 
 
 def serve(cfg: config.Config, port: int = 8765, open_browser: bool = True) -> None:
+    httpd = HTTPServer(("127.0.0.1", port), BaseHTTPRequestHandler)  # bind first: fails fast if the port is busy
     store = Store(cfg.db_path)
     token = secrets.token_urlsafe(24)
-    httpd = HTTPServer(("127.0.0.1", port), BaseHTTPRequestHandler)
     port = httpd.server_port  # resolves port 0 to the real one
     httpd.RequestHandlerClass = make_handler(store, cfg, token, port)
     url = f"http://127.0.0.1:{port}/#token={token}"

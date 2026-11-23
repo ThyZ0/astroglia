@@ -81,8 +81,8 @@ def cmd_uninstall(cfg, a):
         cur = json.loads(path.read_text(encoding="utf-8"))
         stripped = _strip_hooks(cur)
         if stripped != cur:
-            shutil.copy2(path, cfg.home / "backups" / f"settings-pre-uninstall-{time.strftime('%Y%m%d-%H%M%S')}.json") \
-                if (cfg.home / "backups").exists() else None
+            (cfg.home / "backups").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, cfg.home / "backups" / f"settings-pre-uninstall-{time.strftime('%Y%m%d-%H%M%S')}.json")
             path.write_text(json.dumps(stripped, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     claude = shutil.which("claude")
     if claude:
@@ -157,14 +157,21 @@ def main(argv=None) -> int:
     i.add_argument("--prompt-hook", action="store_true", help="also route every prompt (opt-in, costs context)")
     u = sub.add_parser("uninstall"); u.add_argument("--purge", action="store_true", help="also delete all NEXUS data"); u.add_argument("--yes", action="store_true")
     a = p.parse_args(argv)
-    cfg = config.load(a.home)
+    try:
+        cfg = config.load(a.home)
+    except (ValueError, OSError) as e:  # tomllib.TOMLDecodeError is a ValueError
+        _out(f"error: cannot read NEXUS config.toml: {e}"); return 1
 
     if a.cmd == "hook":
         from . import hooks
         return hooks.run(a.event)
     if a.cmd == "ui":
         from . import web
-        web.serve(cfg, a.port, not a.no_browser); return 0
+        try:
+            web.serve(cfg, a.port, not a.no_browser)
+        except OSError as e:  # Windows reports a busy port as PermissionError (WinError 10013)
+            _out(f"error: port {a.port} is already in use or not allowed ({e.strerror or e}). Try `nexus ui --port 8766`."); return 1
+        return 0
     if a.cmd == "mcp":
         from . import mcp_server
         mcp_server.main(); return 0
