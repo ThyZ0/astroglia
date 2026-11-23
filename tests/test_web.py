@@ -114,3 +114,22 @@ def test_reveal_only_opens_recorded_existing_paths(server, env, monkeypatch):
     assert server("/api/reveal", {"id": "knowledge:unknown"})[0] == 404
     f.unlink()
     assert server("/api/reveal", {"id": "knowledge:x"})[0] == 404 and len(calls) == 1
+
+
+def test_insights_find_overlaps_missing_links_and_score(server, env):
+    s = env["store"]
+    s.upsert({"id": "skill:x:graphify", "kind": "skill", "title": "graphify", "source": "scan:claude-code"})
+    a = experiences.remember(s, "Websocket reconnect needs backoff", "Retry the websocket with exponential backoff after close")
+    b = experiences.remember(s, "Websocket reconnect uses backoff", "Retry websocket with exponential backoff after the close event")
+    c = experiences.remember(s, "Big repo map", "Built the code map with graphify before refactoring")
+    r = json.loads(server("/api/insights")[1])
+    assert {r["overlaps"][0]["a"]["id"], r["overlaps"][0]["b"]["id"]} == {a["id"], b["id"]}
+    sug = [m for m in r["missing_relations"] if m["src"]["id"] == c["id"]]
+    assert sug and sug[0]["dst"]["id"] == "skill:x:graphify"
+    assert 0 <= r["score"] <= 100 and set(r["parts"]) == {"freshness", "verifiability", "connectivity", "documentation"}
+    assert r["unused_capabilities"] == [] and "Needs at least" in r["unused_note"]
+    server("/api/dismiss", {"key": sug[0]["key"]})
+    r2 = json.loads(server("/api/insights")[1])
+    assert not [m for m in r2["missing_relations"] if m["src"]["id"] == c["id"]]
+    tl = json.loads(server("/api/timeline")[1])
+    assert any(e["kind"] == "memory.created" for e in tl)

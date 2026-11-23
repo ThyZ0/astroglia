@@ -95,6 +95,15 @@ def build(cfg: config.Config | None = None) -> MCPServer:
                 and (not kind or n["kind"] == kind) and (include_inactive or n["status"] == "active")]
         return {"count": len(rows), "items": [{"id": n["id"], "status": n["status"], "summary": n["summary"][:160]} for n in rows]}
 
+    @mcp.tool(name="health")
+    async def tool_health() -> dict:
+        """Memory hygiene: health score, overlapping entries (duplicates or contradictions to merge/fix),
+        relations an entry implies but lacks, capabilities never selected. Use to tidy memory after a long project."""
+        from . import insights
+        r = insights.report(store)
+        return {"notice": NOTICE, "score": r["score"], "parts": r["parts"], "overlaps": r["overlaps"][:10],
+                "missing_relations": r["missing_relations"][:10], "unused_capabilities": r["unused_capabilities"][:20]}
+
     @mcp.tool(name="status")
     async def tool_status() -> dict:
         """Health: counts, last sync, recent events."""

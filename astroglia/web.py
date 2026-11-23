@@ -72,6 +72,24 @@ def graph(store: Store) -> dict:
     return {"nodes": nodes, "edges": edges, "last_event": last}
 
 
+TIMELINE_KINDS = ("memory.created", "memory.updated", "memory.stale", "memory.revalidated", "memory.merged",
+                  "sync.capabilities", "sync.providers", "consolidate.asked", "feedback")
+
+
+def timeline(store: Store, days: int = 30) -> list[dict]:
+    """What changed, day by day: learned, changed, went stale, revalidated, new or vanished resources."""
+    from datetime import datetime, timedelta, timezone
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+    q = f"SELECT id, ts, kind, payload FROM events WHERE ts >= ? AND kind IN ({','.join('?' * len(TIMELINE_KINDS))}) ORDER BY id DESC LIMIT 2000"
+    out = []
+    for r in store.db.execute(q, (since, *TIMELINE_KINDS)).fetchall():
+        p = json.loads(r["payload"])
+        if r["kind"].startswith("sync.") and not (p.get("new") or p.get("missing") or p.get("briefs_built")):
+            continue  # quiet syncs are noise
+        out.append({"id": r["id"], "ts": r["ts"], "kind": r["kind"], "payload": p})
+    return out
+
+
 def voids(store: Store) -> list[dict]:
     """Weak zones of the store, each with the rule that found it (no guesses)."""
     from datetime import datetime, timedelta, timezone
@@ -136,6 +154,11 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
         if path == "/api/events":
             after = one("after")
             return store.events(int(one("limit", "100")), kind=one("kind"), after=int(after) if after else None)
+        if path == "/api/insights":
+            from . import insights
+            return insights.report(store)
+        if path == "/api/timeline":
+            return timeline(store, int(one("days", "30")))
         if path == "/api/value":
             from . import metrics
             return metrics.value(store, int(one("days")) if one("days") else None)
@@ -148,6 +171,10 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
         if path == "/api/edge-types":
             return sorted(EDGE_TYPES)
     if method == "POST":
+        if path == "/api/dismiss":
+            from . import insights
+            insights.dismiss(store, str(body.get("key", "")))
+            return {"dismissed": True}
         if path == "/api/reveal":
             n = store.get(str(body.get("id")))
             ref = n and (n["ref"] or n["meta"].get("root"))
