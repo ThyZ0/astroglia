@@ -68,6 +68,8 @@ def session_start(payload: dict, cfg: config.Config | None = None) -> str:
         roots = list(cfg.project_roots)
         if payload.get("cwd") and (Path(payload["cwd"]) / ".mcp.json").exists():
             roots.append(payload["cwd"])
+        # per-session "already shown" markers of past sessions are useless: keep the kv table small
+        store.db.execute("DELETE FROM kv WHERE key LIKE 'anchor:%' OR key LIKE 'consolidated:%'"); store.db.commit()
         rep = providers.sync_all(store, cfg, roots, brief_budget_s=3.0, current=payload.get("cwd"))
         return manifest(store, cfg, payload.get("cwd"), rep["capabilities"], {"stale": rep["stale"]},
                         int((time.perf_counter() - t0) * 1000))

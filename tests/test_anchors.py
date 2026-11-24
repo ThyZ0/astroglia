@@ -58,3 +58,12 @@ def test_served_anchors_count_in_value_report(env):
     experiences.remember(env["store"], "A fact", "about a.py", files=[str(src)])
     call(env, "Read", src)
     assert metrics.value(env["store"])["measured"]["anchored_served"] == 1
+
+
+def test_session_start_clears_old_session_markers(env):
+    from astroglia import hooks
+    src = write(env["tmp"] / "k.py", "z = 1\n")
+    experiences.remember(env["store"], "K fact", "about k.py", files=[str(src)])
+    call(env, "Read", src, session="old")
+    hooks.session_start({}, env["cfg"])
+    assert not env["store"].db.execute("SELECT 1 FROM kv WHERE key LIKE 'anchor:%'").fetchone()
