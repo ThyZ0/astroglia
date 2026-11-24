@@ -1,5 +1,5 @@
 {
-  "description": "Astroglia: session manifest at start; remembered knowledge served when Claude reads or edits the file it is about; one consolidation reminder at the end of real work. All fail open.",
+  "description": "Astroglia: session manifest at start; remembered knowledge served when Claude reads or edits the file it is about; remembered fixes when a command fails; one consolidation reminder at the end of real work. All fail open.",
   "hooks": {
     "SessionStart": [
       {
@@ -30,6 +30,18 @@
           {
             "type": "command",
             "command": "astroglia hook post-tool",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "astroglia hook failure",
             "timeout": 5
           }
         ]

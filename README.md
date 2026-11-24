@@ -19,6 +19,7 @@ Astroglia tells it which resources fit the task, what it already learned, and wh
 | sees 40+ skill descriptions and picks by guesswork; overlapping skills get loaded twice | calls **`route(task)`**: a short ranked list with the reason for every pick and every rejection, overlaps removed |
 | forgets the fix it found yesterday, or worse, trusts a note about code that has since changed | **`remember`** ties each note to the hashes of its files; when they change, the note is served flagged **stale** |
 | opens `cache.py` with no idea that a past decision explains why the TTL is 600 | **anchored memory**: what Astroglia remembers about a file arrives *when Claude reads that file*, without any query, flagged stale if the file changed; editing it lists the decisions that may no longer hold |
+| hits an error it already fixed last week, and debugs it from scratch | **déjà vu**: when a command fails, Astroglia checks whether that error was already solved and remembered, and says so (silent unless the match is strong: 0 false matches on 35 real errors) |
 | ends a long session and the knowledge is gone | a **Stop hook** asks once, only after real work, whether something is worth keeping |
 
 Astroglia is named after the star-shaped brain cells that support neurons without doing the thinking. It does not think for Claude: it organises what Claude already has.
@@ -91,7 +92,8 @@ Also: **Neural view** (walk the graph entry by entry), **Clusters** (a plugin or
 Claude Code ──SessionStart hook──► sync (incremental) ─► manifest: capabilities, changes, current project + brief
             ──MCP──► route · project · get · remember · feedback · revalidate · link · search · status · sync
             ──PostToolUse (Read/Edit/Write)──► memory anchored to that file, once per session (~35 ms)
-            ──Stop hook──► once per session: "save what is reusable?"
+            ──PostToolUseFailure (Bash)──► déjà vu: a remembered fix for this error, if any
+            ──Stop hook──► once per session: "save what is reusable?" (quotes the errors met)
                          │
                  SQLite (FTS5) in ~/.astroglia: entries, typed relations, versions, event log
 ```

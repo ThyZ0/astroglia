@@ -100,12 +100,34 @@ def prompt(payload: dict, cfg: config.Config | None = None) -> str | None:
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 
-def session_activity(transcript: str | Path) -> tuple[list[str], bool]:
+def _error_lines(line: str) -> list[str]:
+    """The most telling line of each failed tool result in a transcript line (error class or last line)."""
+    import re
+    try:
+        content = (json.loads(line).get("message") or {}).get("content")
+    except ValueError:
+        return []
+    out = []
+    for part in content if isinstance(content, list) else []:
+        if isinstance(part, dict) and part.get("type") == "tool_result" and part.get("is_error"):
+            c = part.get("content")
+            text = c if isinstance(c, str) else " ".join(x.get("text", "") for x in c or [] if isinstance(x, dict))
+            lines = [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("Exit code")]
+            key = next((l for l in lines if re.search(r"[A-Z][A-Za-z]+(Error|Exception)|\berror\b", l)), lines[-1] if lines else "")
+            if key:
+                out.append(key[:160])
+    return out
+
+
+def session_activity(transcript: str | Path, errors: list | None = None) -> tuple[list[str], bool]:
     """(files edited by tool calls, whether astroglia's remember tool was called) from a session transcript.
-    Reads only tool names and file paths; nothing from the transcript is stored."""
+    If `errors` is a list, the key line of each failed tool result is appended to it. Nothing is stored."""
     files, remembered = [], False
     with open(transcript, encoding="utf-8", errors="replace") as fh:
         for line in fh:
+            if errors is not None and '"is_error":true' in line.replace(" ", ""):
+                errors.extend(_error_lines(line))
+                continue
             if '"tool_use"' not in line:
                 continue
             try:
@@ -131,7 +153,8 @@ def stop(payload: dict, cfg: config.Config | None = None) -> dict | None:
     cfg = cfg or config.load()
     if not cfg.consolidate or payload.get("stop_hook_active") or not payload.get("transcript_path"):
         return None
-    files, remembered = session_activity(payload["transcript_path"])
+    errors: list[str] = []
+    files, remembered = session_activity(payload["transcript_path"], errors)
     if remembered or len(files) < cfg.consolidate_min_files:
         return None
     store = Store(cfg.db_path)
@@ -151,6 +174,8 @@ def stop(payload: dict, cfg: config.Config | None = None) -> dict | None:
             "If it produced something a future session should not have to rediscover (a fix and its cause, a decision "
             "and why, how a module works), save it now with the astroglia `remember` tool, passing the files it depends "
             "on so it can be flagged stale later. Files edited this session:\n" + listed +
+            ("\nErrors met this session (quote the one you fixed in the summary, so Astroglia recognises it next time):\n"
+             + "\n".join(f"- {e}" for e in list(dict.fromkeys(errors))[-3:]) if errors else "") +
             "\nIf nothing is worth keeping, simply finish. This reminder appears once."}
 
 
