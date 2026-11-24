@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
-## [Unreleased]
+## [0.12.0] - 2026-11-24
 ### Performance
 - Atlas at 20,000 entries (headless Chrome, software rendering), measured: placement 4,800 ms -> 33 ms (pre-computed region raster, spatial hash, sunflower spiral for constellations over 120 stars); panning 44 -> ~80 frames/s by caching plate, constellation lines and plain stars in an off-screen layer that panning only moves; star size adapts to density and only the largest constellations are named when zoomed out. Two intermediate attempts (one batched path of 20k arcs: 24 fps; pre-drawn sprites: 17 fps) were measured slower and dropped.
 ### Added
