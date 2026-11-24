@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
 ### Added
+- **First contact**: `astroglia` with no command shows what it is, whether it is connected to Claude Code, what it knows, and the next step (it used to print an argparse error). `astroglia install --yes` runs the first scan right away and reports what it found, so `astroglia ui` is not empty before the next session.
+- Human-readable output for `install`, `doctor`, `sync`, `status`, `value` and `route` (colours only on a terminal, `NO_COLOR` respected); `--json` keeps the machine form for scripts.
 - **Time travel in the Atlas**: a slider shows the brain as it was on a given day (entries' real creation dates), and "▶ Growth" replays how the knowledge grew. With "reduce motion" enabled in the OS (it is on the development machine), the replay runs in ten discrete stages instead of a continuous animation.
 ### Fixed
 - The Atlas toolbar no longer wraps onto two lines.

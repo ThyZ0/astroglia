@@ -23,3 +23,20 @@ def test_install_then_uninstall_restores_settings(env, monkeypatch):
 
     assert cli.main(["--home", str(env["cfg"].home), "uninstall"]) == 0
     assert json.loads(s.read_text(encoding="utf-8")) == original
+
+
+def test_first_contact_is_readable_and_install_scans_right_away(env, monkeypatch, capsys):
+    monkeypatch.setattr(cli.shutil, "which", lambda _: None)
+    home = ["--home", str(env["cfg"].home)]
+    assert cli.main(home) == 0
+    out = capsys.readouterr().out
+    assert "Not connected to Claude Code yet" in out and "astroglia install" in out
+    assert cli.main(home + ["install"]) == 0
+    assert "Dry run" in capsys.readouterr().out
+    assert cli.main(home + ["install", "--yes"]) == 0
+    out = capsys.readouterr().out
+    assert "First scan" in out and "capabilities" in out and "Restart Claude Code" in out
+    assert cli.main(home) == 0
+    assert "Connected. Knows" in capsys.readouterr().out
+    assert cli.main(home + ["--json", "status"]) == 0
+    assert json.loads(capsys.readouterr().out)["nodes_by_kind"]          # --json keeps machine output

@@ -9,16 +9,23 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__, capabilities, config, experiences, providers, router
+from . import __version__, capabilities, config, experiences, pretty, providers, router
 from .store import Store
 
 HOOK_MARK = "-m astroglia hook"
 FILE_TOOLS = "^(Read|Edit|Write|MultiEdit|NotebookEdit|mcp__[A-Za-z0-9-]+__cortex_(read|card|outline|context|edit))$"  # regex: Claude Code file tools + Cortex read/edit tools
 
 
-def _out(obj) -> None:
+JSON = False  # set by --json: machine-readable output for every command
+
+
+def _out(obj, human=None) -> None:
+    """Print `obj` as JSON when --json is given (or when no human form exists), else the human form."""
     sys.stdout.reconfigure(encoding="utf-8")
-    print(json.dumps(obj, indent=2, ensure_ascii=False) if not isinstance(obj, str) else obj)
+    if human is not None and not JSON:
+        print(human(obj) if callable(human) else human)
+    else:
+        print(json.dumps(obj, indent=2, ensure_ascii=False, default=str) if not isinstance(obj, str) else obj)
 
 
 def _hook_cmd(event: str) -> str:
@@ -64,7 +71,7 @@ def cmd_install(cfg, a):
     plan = {"settings_file": str(path), "hooks_to_set": new.get("hooks"), "mcp_command": " ".join(mcp_cmd),
             "claude_cli_found": bool(claude)}
     if not a.yes:
-        _out({"dry_run": True, **plan, "hint": "re-run with --yes to apply (settings.json is backed up first)"})
+        _out({"dry_run": True, **plan, "hint": "re-run with --yes to apply (settings.json is backed up first)"}, pretty.install_plan)
         return 0
     backup = cfg.home / "backups" / f"settings-{time.strftime('%Y%m%d-%H%M%S')}.json"
     backup.parent.mkdir(parents=True, exist_ok=True)
@@ -75,8 +82,16 @@ def cmd_install(cfg, a):
     if claude:
         subprocess.run([claude, "mcp", "remove", "--scope", "user", "astroglia"], capture_output=True)
         mcp_ok = subprocess.run(mcp_cmd, capture_output=True, text=True).returncode == 0
-    _out({"installed": True, "settings_backup": str(backup) if path.exists() else None, "mcp_registered": mcp_ok,
-          **({} if mcp_ok else {"manual_mcp": " ".join(mcp_cmd)})})
+    res = {"installed": True, "settings_backup": str(backup) if path.exists() else None, "mcp_registered": mcp_ok,
+           **({} if mcp_ok else {"manual_mcp": " ".join(mcp_cmd)})}
+    scan = None
+    try:  # first scan right away, so `astroglia ui` is not empty before the next Claude Code session
+        st = Store(cfg.db_path)
+        scan = pretty.scan_summary(providers.sync_all(st, cfg), st)
+        st.close()
+    except Exception as e:  # installing must not fail because a scan did
+        res["first_scan_error"] = f"{type(e).__name__}: {e}"
+    _out({**res, "first_scan": scan}, lambda o: pretty.installed(o, scan))
     return 0
 
 
@@ -137,7 +152,7 @@ def cmd_doctor(cfg, a):
         s.close()
         check("local MCP servers probed (optional)", not unprobed,
               f"with Claude Code closed, run `astroglia probe` so routing knows what {', '.join(unprobed)} can do" if unprobed else "")
-    _out(checks)
+    _out(checks, pretty.doctor)
     return 0 if all(c["ok"] for c in checks if "optional" not in c["check"] and "installed" not in c["check"]
                     and "registered" not in c["check"]) else 1
 
@@ -146,7 +161,8 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="astroglia", description="Astroglia: capability registry, experience memory and context router for Claude Code")
     p.add_argument("--version", action="version", version=__version__)
     p.add_argument("--home", help="data dir (default ~/.astroglia or $ASTROGLIA_HOME)")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    p.add_argument("--json", action="store_true", help="machine-readable output")
+    sub = p.add_subparsers(dest="cmd")
     sub.add_parser("sync", help="scan capabilities and verify memories (incremental)")
     sub.add_parser("status", help="counts and recent events")
     pb = sub.add_parser("probe", help="ask local (stdio) MCP servers for their tool list, so routing knows what they do")
@@ -179,10 +195,22 @@ def main(argv=None) -> int:
     i.add_argument("--prompt-hook", action="store_true", help="also route every prompt (opt-in, costs context)")
     u = sub.add_parser("uninstall"); u.add_argument("--purge", action="store_true", help="also delete all Astroglia data"); u.add_argument("--yes", action="store_true")
     a = p.parse_args(argv)
+    global JSON
+    JSON = a.json
     try:
         cfg = config.load(a.home)
     except (ValueError, OSError) as e:  # tomllib.TOMLDecodeError is a ValueError
         _out(f"error: cannot read Astroglia config.toml: {e}"); return 1
+    if a.cmd is None:  # bare `astroglia`: say what it is, its state, and the next step
+        settings = cfg.claude_dir / "settings.json"
+        installed_here = settings.exists() and HOOK_MARK in settings.read_text(encoding="utf-8")
+        plug = cfg.claude_dir / "plugins" / "installed_plugins.json"
+        installed_here = installed_here or (plug.exists() and "astroglia@" in plug.read_text(encoding="utf-8"))
+        stats = last = None
+        if cfg.db_path.exists():
+            st = Store(cfg.db_path); stats = st.stats(); last = st.kv_get("last_capability_sync"); st.close()
+        _out({"installed": installed_here, "stats": stats, "last_sync": last}, lambda o: pretty.welcome(__version__, installed_here, stats, last))
+        return 0
 
     if a.cmd == "hook":
         if a.event == "post-tool":
@@ -225,19 +253,21 @@ def main(argv=None) -> int:
                   "cc_memory": count(rep["cc_memory"]), "briefs": count(rep["briefs"]),
                   "new": (rep["capabilities"]["created"] + rep["projects"]["created"] + rep["cc_memory"]["created"])[:40],
                   "missing": rep["capabilities"]["missing"] + rep["projects"]["missing"] + rep["cc_memory"]["missing"],
-                  "stale": rep["stale"]})
+                  "stale": rep["stale"]}, lambda _: pretty.sync(rep))
         elif a.cmd == "status":
-            _out({"db": str(cfg.db_path), "last_capability_sync": st.kv_get("last_capability_sync"), **st.stats(),
-                  "recent": [{k: e[k] for k in ("ts", "kind")} for e in st.events(10)]})
+            stats, last = st.stats(), st.kv_get("last_capability_sync")
+            _out({"db": str(cfg.db_path), "last_capability_sync": last, **stats,
+                  "recent": [{k: e[k] for k in ("ts", "kind")} for e in st.events(10)]},
+                 lambda _: pretty.status(str(cfg.db_path), last, stats))
         elif a.cmd == "probe":
             from . import probe
             servers = json.loads(cfg.claude_json.read_text(encoding="utf-8")).get("mcpServers", {}) if cfg.claude_json.exists() else {}
             _out(probe.probe(st, servers, force=a.force, only=a.server))
         elif a.cmd == "value":
             from . import metrics
-            _out(metrics.value(st, a.days))
+            _out(metrics.value(st, a.days), pretty.value)
         elif a.cmd == "route":
-            _out(router.route(st, cfg, a.task, project=a.project, budget=a.budget, kinds=a.kind))
+            _out(router.route(st, cfg, a.task, project=a.project, budget=a.budget, kinds=a.kind), pretty.route)
         elif a.cmd == "search":
             r = router.route(st, cfg, a.query, budget=10_000, kinds=[a.kind] if a.kind else None, limit=a.limit)
             _out([{k: s[k] for k in ("id", "score", "title")} for s in r["selected"]])

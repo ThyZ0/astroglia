@@ -46,7 +46,7 @@ astroglia install          # simulation : affiche exactement ce qui va changer
 astroglia install --yes
 ```
 
-Redémarrez Claude Code. `astroglia doctor` vérifie l'installation ; `astroglia ui` ouvre l'interface.
+Redémarrez Claude Code. Tapez `astroglia` seul pour voir son état et la prochaine étape ; `astroglia doctor` vérifie l'installation ; `astroglia ui` ouvre l'interface.
 
 ## L'interface
 

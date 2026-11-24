@@ -57,7 +57,7 @@ astroglia install          # dry run: prints exactly what will change
 astroglia install --yes
 ```
 
-`astroglia doctor` checks either setup. Optional: `astroglia probe` asks your local MCP servers for their tool list, so routing knows what each one does (it starts them once, like Claude Code does).
+Type `astroglia` alone at any time to see its state and the next step; `astroglia doctor` checks either setup. Optional: `astroglia probe` asks your local MCP servers for their tool list, so routing knows what each one does (it starts them once, like Claude Code does).
 
 Restart Claude Code. Each session then starts with a short manifest. This one is the real output on the demo dataset, opened in `acme-shop`:
 
