@@ -129,12 +129,12 @@ The unchanged-files check was 989 ms before: each entry committed its own "verif
 
 `web.py` is a stdlib `HTTPServer` (single-threaded, local single user) over the same `Store`. The front end (`nexus/ui/`) is plain HTML/CSS/JS, shipped as package data, so there is no Node and no build step. That revises the earlier Vite/Three.js plan for the 2D views; the 3D galaxy (v0.4) will vendor one ES module. Access control: bind 127.0.0.1; per-run token in the URL fragment (never sent in requests except as the `X-Astroglia-Token` header); `Host` must be localhost (DNS-rebinding guard); CSP `default-src 'self'`. Stored text is rendered with `textContent` only. Mutations reuse Store methods, so they are versioned and logged like CLI/MCP changes. Merge folds one entry into another (texts, tags, file fingerprints, relations) and deletes the source into history.
 
-### Brain-galaxy (v0.4)
+### Atlas (v0.14)
 
-`ui/galaxy.js` renders the store as a brain: two hemisphere ellipsoids (left: capabilities, right: memory and projects). Clusters (a plugin, or a project) are placed on the cortex from a hash of their key, and members around their cluster from a hash of their id, so the map is stable between visits and needs no physics simulation. Rendering is a hand-written perspective projection on Canvas 2D with pre-rendered glow sprites. Three.js was judged unnecessary for a few thousand points and would have been the project's first vendored front-end dependency.
+`ui/galaxy.js` lays the store out with a force simulation (`organize`): relations are springs (strong inside a constellation, weak across), each constellation (a plugin with its skills, a project with its memory, MCP servers, hooks) holds together and pushes the others away, and a grid-based local repulsion keeps stars from overlapping, so each step is linear in entries + relations. Nothing is drawn around the stars. The simulation runs about 12 ms per frame until it settles; with reduced motion only the settled map is shown. Earlier versions drew two hemispheres (v0.4) and then a brain plate with fixed lobes (v0.12); both were replaced because fixed outlines looked artificial.
 
 Honesty rules, enforced in code:
-- no decorative stars: the hemispheres are drawn as faint outlines, never filled with fake points;
+- no decorative stars and no drawn outlines: every point is a stored entry, every line a stored relation;
 - animations come only from tailing `/api/events?after=<id>`: `route` gives a core ring, pulses to each selected id and a brief highlight of the clusters used; `memory.*`/`sync.*` reload the graph and new ids "are born"; `feedback` flares the rated entries; `wake` rings the core. A ticker names the event behind each animation;
 - `prefers-reduced-motion`: no rotation or travel, static redraws only.
 

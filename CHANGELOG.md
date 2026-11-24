@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [Unreleased]
+### Changed
+- **The Atlas has no outlines any more and organises itself.** The brain plate (outline, lobes, grid, frame, region titles) is gone; entries are placed by a force simulation over their real relations, so constellations form on their own. Measured: 20 ms to settle 112 entries, 4.5 s for 20,000 entries and 40,000 relations (spread over frames; redrawn at most 4 times a second while settling above 3,000 entries); panning the settled 20k map at about 50 frames/s (headless, software rendering), down from about 80 with the fixed plate.
+- Selecting a star zooms in until its relations are readable and centres them beside the detail panel (never zooms out).
+
 ## [0.13.0] - 2026-11-24
 ### Fixed
 - Stale entries are penalised after selection but the list was never re-sorted, so a stale note scored 0.31 could be listed above a skill scored 0.51. Results are now in score order (regression test reproduces it).

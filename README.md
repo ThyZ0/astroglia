@@ -7,7 +7,7 @@ Astroglia tells it which resources fit the task, what it already learned, and wh
 
 <p align="center">Local · no LLM calls · no cloud · Apache-2.0 · <a href="README.fr.md">Français</a></p>
 
-![The Astroglia atlas: a brain drawn as an anatomical plate and a star chart; each lobe holds what its real counterpart does](docs/images/galaxy.png)
+![The Astroglia atlas: entries arranged by their own relations into constellations, a plugin with its skills, a project with what is known about it](docs/images/galaxy.png)
 
 *Screenshots use the bundled demo dataset (`python bench/demo_seed.py <dir>`), not real usage.*
 
@@ -82,7 +82,7 @@ astroglia ui
 | | |
 |---|---|
 | ![Context Monitor](docs/images/context-monitor.png) **Context Monitor.** What the router selected or rejected for a task, with the score breakdown, and what Claude was served. | ![Project card](docs/images/project-card.png) **Projects.** The brief, the indexes and every remembered entry, with the exact files that changed. |
-| ![Atlas selection](docs/images/galaxy-selected.png) **Atlas.** A brain drawn as an anatomical plate and a star chart. Each lobe holds what its real counterpart does: frontal = what Claude can do, temporal = what it learned, parietal = projects, occipital = its senses (MCP servers), cerebellum = reflexes (hooks). Stars are stored entries, lines stored relations; select one to see them as arcs with type and direction. Pulses leave the brainstem only on real events. | ![Dashboard](docs/images/dashboard.png) **Dashboard.** What Astroglia actually did (counted) and what it saved (estimated, with the formula). |
+| ![Atlas selection](docs/images/galaxy-selected.png) **Atlas.** Nothing is drawn around the entries and nothing is placed by hand: related entries pull together, all keep their distance, and constellations form on their own (a plugin with its skills, a project with what is known about it). Blue = what Claude can do, amber = what it learned, pink = projects. Select a star to zoom on its relations, with type and direction. Type a task and press Enter to see what Claude would be given. Pulses appear only on real events. | ![Dashboard](docs/images/dashboard.png) **Dashboard.** What Astroglia actually did (counted) and what it saved (estimated, with the formula). |
 | ![Health](docs/images/health.png) **Health.** A score with its four ratios explained, suggested relations and overlapping memory with one-click fixes, what Claude reuses most, weak zones. | ![Timeline](docs/images/timeline.png) **Timeline.** What was learned, changed, went stale or was re-validated, day by day: "what changed since last time?" |
 
 Also: **Neural view** (walk the graph entry by entry), **Clusters** (a plugin or a project at a time), **Memory** (edit, merge, link, restore any version), **Capabilities** (every skill, plugin and MCP server, with the tools `astroglia probe` learned).
@@ -129,7 +129,7 @@ Value scenarios (`python bench/value.py <demo-dir>`; assumptions printed with th
 
 The "without" baseline lists each project's whole tree and reads its README and manifests once; a more frugal agent would read less, so the real saving lies between the two. On tiny projects (the demo), a full brief can cost more than reading the files directly: the session-manifest line is where the saving always holds.
 
-Load (`python bench/load.py`, synthetic stores): routing over 20,500 entries in 43 ms (median); freshness check of 500 file-backed entries in 71 ms when unchanged (989 ms before the batched check); the Atlas places 20,000 entries in 33 ms (sunflower layout for large constellations, pre-computed region map) and pans at about 80 frames/s in headless Chrome with software rendering (cached static layer), with a 0.6 MB gzipped payload.
+Load (`python bench/load.py`, synthetic stores): routing over 20,500 entries in 43 ms (median); freshness check of 500 file-backed entries in 71 ms when unchanged (989 ms before the batched check); the Atlas arranges itself (force layout, linear per step) in 20 ms for a typical install (112 entries) and 4.5 s for 20,000 entries and 40,000 relations, spread over frames so the page stays responsive; panning the settled 20k map runs at about 50 frames/s in headless Chrome with software rendering, with a 0.6 MB gzipped payload.
 
 `astroglia value` reports what was actually served on your machine (briefs, memory entries, stale warnings, duplicates flagged), separated from estimates.
 

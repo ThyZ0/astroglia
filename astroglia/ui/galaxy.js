@@ -65,144 +65,100 @@ function sprite(color) {
   sprites.set(color, c); return c;
 }
 
-// ---------- Atlas view: the brain as an anatomical plate drawn like a star chart ----------
-// Each region holds what its real counterpart does: frontal = what Claude can do (skills, commands, agents),
-// temporal = what it learned (memory), parietal = projects, occipital = senses (MCP servers), cerebellum =
-// reflexes (hooks), brainstem = Astroglia's core. Stars are stored entries; lines are stored relations.
-const W0 = 1000, H0 = 720;  // world units of the plate
-const BRAIN = {
-  cerebrum: "M150 430 C110 360 115 250 175 185 C235 115 345 70 465 62 C590 54 710 80 790 140 C860 192 900 262 898 340 " +
-    "C896 395 872 440 830 462 C790 482 745 486 705 478 C660 470 615 482 580 500 C520 532 440 545 380 530 " +
-    "C320 515 285 480 270 445 C250 455 205 462 150 430 Z",
-  cerebellum: "M632 505 C676 474 800 476 848 506 C884 528 878 590 826 606 C770 624 690 618 646 596 C612 578 606 525 632 505 Z",
-  stem: "M566 506 C586 548 592 602 597 690 C608 697 630 697 641 690 C641 628 647 572 670 520 C642 506 598 500 566 506 Z",
-  // sulci (drawn as ink hairlines, also used to split the cerebrum into lobes)
-  sylvian: [[285, 455], [360, 420], [470, 382], [610, 345]],
-  central: [[478, 63], [470, 150], [450, 262], [432, 395]],
-  parieto: [[738, 108], [760, 180], [770, 252], [762, 330], [742, 410], [722, 478]],
-  folds: ["M210 300 C260 270 300 280 330 250", "M190 380 C240 360 290 370 330 340", "M260 190 C300 170 340 180 380 150",
-    "M350 300 C380 270 410 280 430 250", "M540 120 C560 170 600 190 640 170", "M560 250 C600 230 640 250 680 220",
-    "M520 330 C560 310 600 320 640 300", "M800 220 C830 250 840 290 860 320", "M420 470 C470 455 520 460 560 440",
-    "M380 500 C430 492 480 498 520 480", "M652 512 C712 500 788 504 840 520", "M640 540 C708 530 790 536 852 548",
-    "M642 566 C710 560 790 566 850 574", "M656 590 C716 588 784 592 832 594"],
-};
-const REGION = {
-  frontal: { label: "Lobus frontalis", what: "what Claude can do", at: [235, 250] },
-  parietal: { label: "Lobus parietalis", what: "projects", at: [600, 160] },
-  occipital: { label: "Lobus occipitalis", what: "senses: MCP servers", at: [842, 300] },
-  temporal: { label: "Lobus temporalis", what: "what Claude learned", at: [430, 455] },
-  cerebellum: { label: "Cerebellum", what: "reflexes: hooks", at: [745, 545] },
-};
-const CORE = [612, 640];
-
-function regionOf(n) {
-  if (n.kind === "project" || (MEMORY.has(n.kind) && String(n.source || "").startsWith("provider:"))) return "parietal";
-  if (MEMORY.has(n.kind)) return "temporal";
-  if (n.kind === "mcp_server") return "occipital";
-  if (n.kind === "hook") return "cerebellum";
-  return "frontal";
-}
+// ---------- Atlas view: nothing drawn around it; entries organise themselves by their relations ----------
+const W0 = 1000, H0 = 720;  // world box the settled map is fitted into
+const CORE = [W0 / 2, H0 + 36];  // Astroglia itself: where signals for served entries leave from
+// constellation = a plugin with its skills, a project with what is known about it, MCP servers, hooks
 const atlasCluster = (n) => {
-  const r = regionOf(n);
-  return r === "parietal" || r === "temporal" ? `${r}:${n.project || "general"}` : `${r}:${n.origin || "user"}`;
+  if (n.kind === "project" || MEMORY.has(n.kind)) return `proj:${n.project || "general"}`;
+  if (n.kind === "mcp_server") return `mcp:${n.origin || "user"}`;
+  if (n.kind === "hook") return `hook:${n.origin || "user"}`;
+  return `cap:${n.origin || "user"}`;
 };
-const xAt = (poly, y) => {  // x of a polyline at height y (linear interpolation, clamped)
-  for (let i = 1; i < poly.length; i++) {
-    const [x1, y1] = poly[i - 1], [x2, y2] = poly[i];
-    if ((y - y1) * (y - y2) <= 0 && y1 !== y2) return x1 + (x2 - x1) * (y - y1) / (y2 - y1);
-  }
-  return y < poly[0][1] ? poly[0][0] : poly[poly.length - 1][0];
-};
-const yAt = (poly, x) => xAt(poly.map(([a, b]) => [b, a]), x);
 
-const SPIRAL_FROM = 120;
-  // clusters bigger than this use the sunflower layout
-const REGION_CODES = [null, "frontal", "parietal", "occipital", "temporal", "cerebellum"];
-let regionRaster = null;  // region of every 2x2 cell of the plate, computed once (geometry tests are slow)
-function regionMap() {
-  if (regionRaster) return regionRaster;
-  const probe = document.createElement("canvas").getContext("2d");
-  const cereb = new Path2D(BRAIN.cerebrum), cbl = new Path2D(BRAIN.cerebellum);
-  const cols = W0 / 2, rows = H0 / 2, m = new Uint8Array(cols * rows);
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    const x = i * 2 + 1, y = j * 2 + 1;
-    let r = null;
-    if (probe.isPointInPath(cbl, x, y)) r = "cerebellum";
-    else if (probe.isPointInPath(cereb, x, y)) {
-      if (y > yAt(BRAIN.sylvian, x) && x > 270 && x < 700) r = "temporal";
-      else if (x < xAt(BRAIN.central, y)) r = "frontal";
-      else if (x > xAt(BRAIN.parieto, y)) r = "occipital";
-      else r = "parietal";
+// Force layout, linear per tick: relations are springs, constellations hold together and keep apart,
+// and a grid-based local repulsion stops stars from overlapping. `prev` (id -> [x, y]) keeps known stars in place.
+function organize(nodes, edges, prev) {
+  const n = nodes.length, idx = new Map(nodes.map((x, i) => [x.id, i]));
+  const groups = new Map(), cluster = new Map();
+  for (const x of nodes) { const k = atlasCluster(x); cluster.set(x.id, k); (groups.get(k) || groups.set(k, []).get(k)).push(x); }
+  const keys = [...groups.keys()].sort((a, b) => groups.get(b).length - groups.get(a).length), K = keys.length;
+  const size = keys.map((k) => groups.get(k).length), ci = new Int32Array(n);
+  keys.forEach((k, j) => { for (const m of groups.get(k)) ci[idx.get(m.id)] = j; });
+  const d0 = Math.min(22, Math.max(3, 0.7 * Math.sqrt(W0 * H0 / Math.max(1, n))));  // spacing between neighbours
+  const rc = size.map((z) => d0 * (0.9 * Math.sqrt(z) + 1));  // room a constellation needs
+  const X = new Float64Array(n), Y = new Float64Array(n);
+  const step0 = 2 * rc.reduce((a, b) => a + b, 0) / Math.max(1, K);
+  keys.forEach((k, j) => {  // seed: biggest constellations in the middle, the others spiralling out
+    const a = j * 2.39996323, R = step0 * Math.sqrt(j);
+    for (const m of groups.get(k)) {
+      const i = idx.get(m.id), q = rng(hash(m.id)), old = prev && prev.get(m.id);
+      if (old) { X[i] = old[0]; Y[i] = old[1]; continue; }
+      X[i] = Math.cos(a) * R + gauss(q) * rc[j] * 0.5; Y[i] = Math.sin(a) * R + gauss(q) * rc[j] * 0.5;
     }
-    m[j * cols + i] = REGION_CODES.indexOf(r);
+  });
+  const src = [], dst = [], same = [];
+  for (const e of edges) {
+    const a = idx.get(e.src), b = idx.get(e.dst);
+    if (a === undefined || b === undefined || a === b) continue;
+    src.push(a); dst.push(b); same.push(ci[a] === ci[b]);
   }
-  return (regionRaster = { m, cols, rows });
-}
-
-function atlasLayout(nodes) {
-  const R = regionMap();
-  const regionAt = (x, y) => {
-    const i = x >> 1, j = y >> 1;
-    return i < 0 || j < 0 || i >= R.cols || j >= R.rows ? null : REGION_CODES[R.m[j * R.cols + i]];
-  };
-  const grid = new Map(), CELL = 12;  // spatial hash of placed stars: nearest-neighbour checks stay local
-  const addPt = (p) => { const k = ((p[0] / CELL) | 0) + "," + ((p[1] / CELL) | 0); (grid.get(k) || grid.set(k, []).get(k)).push(p); };
-  const nearest = (x, y) => {
-    let d = 1e9; const ci = (x / CELL) | 0, cj = (y / CELL) | 0;
-    for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (const q of grid.get((ci + a) + "," + (cj + b)) || []) d = Math.min(d, Math.hypot(q[0] - x, q[1] - y));
-    return d;
-  };
-  const nearTitle = (x, y) => Object.values(REGION).some((r) => Math.abs(x - r.at[0]) < 62 && y > r.at[1] - 16 && y < r.at[1] + 18);
-  const deep = (reg, x, y, m) => [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([dx, dy]) => regionAt(x + dx, y + dy) === reg);
-  const groups = new Map();
-  for (const n of nodes) { const k = atlasCluster(n); (groups.get(k) || groups.set(k, []).get(k)).push(n); }
-  const pos = new Map(), centers = new Map();
-  const keys = [...groups.keys()].sort((a, b) => groups.get(b).length - groups.get(a).length);
-  for (const key of keys) {
-    const reg = key.split(":")[0], members = groups.get(key), r = rng(hash(key));
-    const spread = Math.min(70, 10 + Math.sqrt(members.length) * 9);
-    let best = null, bestD = -1;  // best-candidate sampling: clusters spread evenly over their lobe
-    for (let i = 0; i < 400 && !(best && i > 60); i++) {
-      const x = 100 + r() * 820, y = 40 + r() * 600;
-      if (!deep(reg, x, y, Math.max(24, Math.min(spread * 0.8, 36))) || nearTitle(x, y)) continue;  // keep constellations off the lobe boundaries
-      const d = Math.min(1e9, ...[...centers.entries()].filter(([k]) => k.startsWith(reg)).map(([, c]) => Math.hypot(c[0] - x, c[1] - y)));
-      if (d > bestD) { best = [x, y]; bestD = d; }
-    }
-    best = best || REGION[reg].at;
-    centers.set(key, best);
-    const hub = members.find((m) => m.kind === "plugin" || m.kind === "project");
-    if (members.length > SPIRAL_FROM) {  // large cluster: sunflower spiral, even spacing in linear time
-      const rest = members.filter((m) => m !== hub).sort((a, b) => (a.id < b.id ? -1 : 1));
-      if (hub) { pos.set(hub.id, best); addPt(best); }
-      const step = 2.6;  // world units between neighbouring seeds
-      rest.forEach((m, i) => {
-        let rad = step * Math.sqrt(i + 4), a = (i + 4) * 2.39996323, x, y;  // golden angle
-        for (let shrink = 0; shrink < 6; shrink++) {
-          x = best[0] + Math.cos(a) * rad; y = best[1] + Math.sin(a) * rad;
-          if (regionAt(x, y) === reg) break;
-          a += 0.9; rad *= 0.86;  // outside the lobe: turn and pull inwards
-        }
-        pos.set(m.id, [x, y]); addPt([x, y]);
-      });
-      continue;
-    }
-    for (const m of members) {
-      if (m === hub) { pos.set(m.id, best); addPt(best); continue; }
-      const q = rng(hash(m.id));
-      let p = null, pd = -1;
-      for (let i = 0; i < 30; i++) {
-        const a = q() * Math.PI * 2, rad = 8 + Math.sqrt(q()) * spread;
-        const x = best[0] + Math.cos(a) * rad, y = best[1] + Math.sin(a) * rad;
-        if (regionAt(x, y) !== reg || nearTitle(x, y)) continue;
-        const d = nearest(x, y);
-        if (d > pd) { p = [x, y]; pd = d; }
+  let alpha = prev ? 0.3 : 1;
+  const cx = new Float64Array(K), cy = new Float64Array(K), ox = new Float64Array(K), oy = new Float64Array(K), C = d0 * 2, grid = new Map();
+  function tick() {
+    cx.fill(0); cy.fill(0); ox.fill(0); oy.fill(0);
+    for (let i = 0; i < n; i++) { cx[ci[i]] += X[i]; cy[ci[i]] += Y[i]; }
+    for (let j = 0; j < K; j++) { cx[j] /= size[j]; cy[j] /= size[j]; }
+    for (let a = 0; a < K; a++) {  // constellations drift to the middle and push each other apart
+      ox[a] -= cx[a] * 0.01 * alpha; oy[a] -= cy[a] * 0.01 * alpha;
+      for (let b = a + 1; b < K; b++) {
+        const dx = cx[b] - cx[a], dy = cy[b] - cy[a], d = Math.hypot(dx, dy) || 0.01, want = rc[a] + rc[b] + d0 * 2;
+        if (d >= want) continue;
+        const f = (want - d) / d * 0.5 * alpha, wa = size[b] / (size[a] + size[b]), wb = 1 - wa;
+        ox[a] -= dx * f * wa; oy[a] -= dy * f * wa; ox[b] += dx * f * wb; oy[b] += dy * f * wb;
       }
-      p = p || [best[0] + (q() - 0.5) * 20, best[1] + (q() - 0.5) * 20];
-      pos.set(m.id, p); addPt(p);
     }
+    for (let i = 0; i < n; i++) { const j = ci[i]; X[i] += ox[j] + (cx[j] - X[i]) * 0.04 * alpha; Y[i] += oy[j] + (cy[j] - Y[i]) * 0.04 * alpha; }
+    for (let e = 0; e < src.length; e++) {  // relations are springs; across constellations they are weak
+      const a = src[e], b = dst[e], dx = X[b] - X[a], dy = Y[b] - Y[a], d = Math.hypot(dx, dy) || 0.01;
+      const f = (d - d0 * 1.6) / d * (same[e] ? 0.08 : 0.004) * alpha;
+      X[a] += dx * f; Y[a] += dy * f; X[b] -= dx * f; Y[b] -= dy * f;
+    }
+    grid.clear();  // local repulsion through a grid: each star only meets its neighbours
+    for (let i = 0; i < n; i++) { const k = (Math.floor(X[i] / C) + 32768) * 65536 + Math.floor(Y[i] / C) + 32768; (grid.get(k) || grid.set(k, []).get(k)).push(i); }
+    for (let i = 0; i < n; i++) {
+      const gx = Math.floor(X[i] / C) + 32768, gy = Math.floor(Y[i] / C) + 32768;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+        const cell = grid.get((gx + a) * 65536 + gy + b); if (!cell) continue;
+        for (const j of cell) {
+          if (j <= i) continue;
+          let dx = X[j] - X[i], dy = Y[j] - Y[i]; const d2 = dx * dx + dy * dy;
+          if (d2 >= C * C) continue;
+          if (d2 === 0) { dx = 0.01 * (1 + (i % 7)); dy = 0.01; }
+          const d = Math.sqrt(dx * dx + dy * dy), f = (C - d) / d * 0.25;
+          X[i] -= dx * f; Y[i] -= dy * f; X[j] += dx * f; Y[j] += dy * f;
+        }
+      }
+    }
+    alpha *= 0.985;
   }
-  const cluster = new Map(nodes.map((n) => [n.id, atlasCluster(n)]));  // per-frame work reads these, never recomputes
-  return { pos, centers, groups, cluster };
+  const pos = new Map(nodes.map((x) => [x.id, [W0 / 2, H0 / 2]])), centers = new Map();
+  function fitBox() {  // settled coordinates -> the world box the view knows how to frame
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < n; i++) { x0 = Math.min(x0, X[i]); x1 = Math.max(x1, X[i]); y0 = Math.min(y0, Y[i]); y1 = Math.max(y1, Y[i]); }
+    const k = Math.min((W0 - 60) / Math.max(1, x1 - x0), (H0 - 60) / Math.max(1, y1 - y0), 2.5), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    nodes.forEach((x, i) => { const p = pos.get(x.id); p[0] = W0 / 2 + (X[i] - mx) * k; p[1] = H0 / 2 + (Y[i] - my) * k; });
+    keys.forEach((key, j) => centers.set(key, [W0 / 2 + (cx[j] - mx) * k, H0 / 2 + (cy[j] - my) * k]));
+  }
+  const done = () => alpha < 0.02 || n === 0;
+  function step(budgetMs) {  // run ticks for about budgetMs; true once settled
+    const t0 = performance.now();
+    do tick(); while (!done() && performance.now() - t0 < budgetMs);
+    fitBox(); return done();
+  }
+  const snapshot = () => new Map(nodes.map((x, i) => [x.id, [X[i], Y[i]]]));
+  fitBox();
+  return { pos, centers, groups, cluster, step, done, snapshot };
 }
 
 views.galaxy = async () => {
@@ -210,11 +166,11 @@ views.galaxy = async () => {
   const g = await loadGraph(true);
   $view.classList.add("bleed");
   const canvas = h("canvas.galaxy.atlas", { role: "img", tabindex: 0, "aria-label":
-    `Atlas of ${g.nodes.length} entries and ${g.edges.length} relations, drawn as a brain. Arrow keys pan, plus and minus zoom. ` +
+    `Atlas of ${g.nodes.length} entries and ${g.edges.length} relations, arranged by their relations. Arrow keys pan, plus and minus zoom. ` +
     "The same entries are listed as text in Capabilities, Memory, Projects and Health." });
   const search = h("input", { type: "search", placeholder: "Find a star, or describe a task ↵", "aria-label": "Highlight entries by name, or type a task and press Enter to see what Claude would be given" });
   const voidSel = h("select", { "aria-label": "Highlight weak zones" }, h("option", { value: "" }, "Weak zones: off"));
-  const fitBtn = h("button.btn.ghost.small", { type: "button", title: "Show the whole plate" }, "Fit");
+  const fitBtn = h("button.btn.ghost.small", { type: "button", title: "Show everything" }, "Fit");
   const timeSlider = h("input.time-slider", { type: "range", min: 0, max: 1000, value: 1000, "aria-label": "Show the atlas as it was on a date" });
   const timeLabel = h("span.time-label.small", {}, "now");
   const playBtn = h("button.btn.ghost.small", { type: "button", title: "Replay how this knowledge grew, in creation order" }, "▶ Growth");
@@ -238,14 +194,14 @@ views.galaxy = async () => {
     open ? localStorage.removeItem("astroglia-legend-closed") : localStorage.setItem("astroglia-legend-closed", "1"); } }, "Key");
   const onboard = h("div.onboard", { role: "dialog", "aria-label": "How to read the atlas", hidden: !!localStorage.getItem("astroglia-atlas-onboarded") },
     h("h2", {}, "How to read the atlas"),
-    h("ul", {}, h("li", {}, "The plate is a brain. Each region holds what its real counterpart does: the frontal lobe what Claude can do, the temporal lobe what it learned, the parietal lobe your projects, the occipital lobe its senses (MCP servers), the cerebellum its reflexes (hooks)."),
+    h("ul", {}, h("li", {}, "Nothing is placed by hand: related entries pull together, everything else keeps its distance, and groups form on their own. Blue is what Claude can do, amber what it learned, pink your projects."),
       h("li", {}, "Each star is a stored entry; constellations are a plugin with its skills, or a project with what is known about it. Lines are stored relations only."),
-      h("li", {}, "Pulses leave the brainstem only when Astroglia actually serves something: the strip at the bottom names the event."),
+      h("li", {}, "Pulses rise from the bottom of the map only when Astroglia actually serves something: the strip at the bottom names the event."),
       h("li", {}, "Drag to move, scroll or +/− to zoom, click a star for its relations, shift+click a second star for the path, Esc to clear.")),
     h("button.btn.primary", { type: "button", onclick: () => { localStorage.setItem("astroglia-atlas-onboarded", "1"); onboard.hidden = true; } }, "Got it"));
   setView(h("div.galaxy-wrap.atlas-wrap", {}, canvas,
     h("div.galaxy-top", {}, h("div", {}, h("h1.atlas-title", {}, "Atlas"),
-      h("p.muted.small", {}, `${g.nodes.length} entries · ${g.edges.length} relations · plate drawn from the local store`)),
+      h("p.muted.small", {}, `${g.nodes.length} entries · ${g.edges.length} relations · arranged by their relations`)),
       h("div.row", {}, search, voidSel, timeCtl, fitBtn, h("button.btn.ghost.small", { type: "button", "aria-label": "How to read the atlas", onclick: () => { onboard.hidden = false; } }, "?"))),
     legendBtn, legend, side, ticker, onboard));
   api("/api/voids").then((vs) => { for (const v of vs) if (v.items.length) voidSel.append(h("option", { value: v.key }, `${v.label} (${v.items.length})`));
@@ -253,7 +209,7 @@ views.galaxy = async () => {
 
   const screenCtx = canvas.getContext("2d");
   let ctx = screenCtx;  // points at the cached layer while it is being rendered
-  let L = atlasLayout(g.nodes), W = 0, H = 0, dpr = 1;
+  let L = organize(g.nodes, g.edges), W = 0, H = 0, dpr = 1;
   const view = { x: 0, y: 0, k: 1 };
   let ranked = null;  // id -> rank when previewing a routing
   let hover = null, selected = null, highlight = null, focusSet = null, path = null, active = null, proj = [];
@@ -261,7 +217,7 @@ views.galaxy = async () => {
   // a real event reaches a star: a travelling pulse, or just a fading highlight when the OS asks for reduced motion
   const signal = (id, t0) => (reduceMotion ? flares.set(id, t0) : pulses.push({ id, t0 }));
   const now = () => performance.now();
-  // Time travel: the plate as it was at `timeCut` (entries' real creation dates); null = now.
+  // Time travel: the map as it was at `timeCut` (entries' real creation dates); null = now.
   const born = g.nodes.map((n) => Date.parse(n.created)).filter((x) => !isNaN(x));
   const tMin = Math.min(...born), tMax = Date.now();
   let timeCut = null;
@@ -273,59 +229,15 @@ views.galaxy = async () => {
     dpr = devicePixelRatio || 1; const first = !W; W = canvas.clientWidth; H = canvas.clientHeight;
     canvas.width = W * dpr; canvas.height = H * dpr; if (first) fit(); invalidate();
   };
-  const P = { cerebrum: new Path2D(BRAIN.cerebrum), cerebellum: new Path2D(BRAIN.cerebellum), stem: new Path2D(BRAIN.stem),
-    folds: BRAIN.folds.map((d) => new Path2D(d)) };
-  const poly = (pts) => { const p = new Path2D(); pts.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y))); return p; };
-  const sulci = [poly(BRAIN.sylvian), poly(BRAIN.central), poly(BRAIN.parieto)];
   const INK = "rgba(196, 210, 236,", GOLD = "#e8c46a";
-
-  let titleBoxes = [];
-  function plate() {  // graticule, frame, anatomy: drawn in world units
-    ctx.save(); ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, dpr * view.x, dpr * view.y);
-    const lw = 1 / view.k;
-    ctx.lineWidth = lw; ctx.strokeStyle = INK + "0.045)";
-    for (let x = 0; x <= W0; x += 50) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H0); ctx.stroke(); }
-    for (let y = 0; y <= H0; y += 50) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W0, y); ctx.stroke(); }
-    ctx.strokeStyle = INK + "0.22)"; ctx.strokeRect(0, 0, W0, H0); ctx.strokeRect(-8, -8, W0 + 16, H0 + 16);
-    ctx.fillStyle = INK + "0.35)"; ctx.font = `${9}px Georgia, "Times New Roman", serif`; ctx.textAlign = "center";
-    for (let x = 100; x < W0; x += 100) { ctx.fillText(String(x / 10), x, -12); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 6); ctx.stroke(); }
-    ctx.textAlign = "right";
-    for (let y = 100; y < H0; y += 100) { ctx.fillText(String(y / 10), -12, y + 3); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(6, y); ctx.stroke(); }
-    // anatomy: very faint fill, ink outline, hairline folds
-    const fill = ctx.createLinearGradient(0, 60, 0, 690);
-    fill.addColorStop(0, "rgba(120, 150, 210, 0.055)"); fill.addColorStop(1, "rgba(120, 150, 210, 0.02)");
-    for (const p of [P.cerebrum, P.cerebellum, P.stem]) { ctx.fillStyle = fill; ctx.fill(p); }
-    ctx.strokeStyle = INK + "0.5)"; ctx.lineWidth = 1.3 * lw;
-    for (const p of [P.cerebrum, P.cerebellum, P.stem]) ctx.stroke(p);
-    ctx.strokeStyle = INK + "0.28)"; ctx.lineWidth = 1.1 * lw; sulci.forEach((p) => ctx.stroke(p));
-    ctx.strokeStyle = INK + "0.1)"; ctx.lineWidth = lw; P.folds.forEach((p) => ctx.stroke(p));
-    ctx.textAlign = "right"; ctx.font = `italic ${10}px Georgia, serif`; ctx.fillStyle = INK + "0.3)";
-    ctx.fillText("Tabula I. — Encephalon Claudii, sectio lateralis", W0 - 10, H0 - 12);
-    ctx.restore();
-    // region names, like an anatomical plate: fixed size on screen, fading out when zoomed in
-    const zoom = view.k / Math.min(W / (W0 + 60), H / (H0 + 120)), fade = Math.max(0, Math.min(1, (3.2 - zoom) / 1.4));
-    titleBoxes = [];
-    if (!fade) return;
-    ctx.textAlign = "center";
-    for (const [key, r] of [...Object.entries(REGION), ["stem", { label: "Truncus", what: "Astroglia", at: [CORE[0], CORE[1] + 40] }]]) {
-      const dim = active && key !== "stem" && ![...active].some((id) => g.byId.get(id) && regionOf(g.byId.get(id)) === key);
-      const [x, y] = S(r.at);
-      titleBoxes.push([x - 70, y - 14, x + 70, y + 18]);  // star names keep clear of region titles
-      ctx.globalAlpha = fade;
-      ctx.fillStyle = INK + (dim ? "0.13)" : "0.48)");
-      ctx.font = `italic 16px Georgia, "Times New Roman", serif`; ctx.fillText(r.label, x, y);
-      ctx.font = `600 8.5px "Segoe UI", system-ui, sans-serif`; ctx.fillStyle = INK + (dim ? "0.1)" : "0.34)");
-      ctx.fillText(r.what.toUpperCase().split("").join(" "), x, y + 14);
-      ctx.globalAlpha = 1;
-    }
-  }
+  const titleBoxes = [];  // nothing reserved any more: no drawn titles
 
   function curve(a, b, bend) {  // a gentle arc between two screen points, like a route on a chart
     const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
     return [mx - dy / len * len * bend, my + dx / len * len * bend];
   }
 
-  // Layer cache: plate, constellation lines and plain stars change only with zoom, selection, filters or data.
+  // Layer cache: constellation lines and plain stars change only with zoom, selection, filters or data.
   // They are rendered once into an off-screen canvas with a margin, and panning just moves that image.
   // Measured at 20k entries (headless, software rendering): stars alone cost 44 ms per frame when redrawn.
   const layer = { canvas: document.createElement("canvas"), ver: -1, ox: 0, oy: 0, w: 0, h: 0 };
@@ -350,12 +262,11 @@ views.galaxy = async () => {
   function pass(t, mode) {
     const statik = mode === "static";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (statik) plate();
     const focus = selected || hover;
     active = path ? path.nodes : selected ? focusSet : highlight;
     const SP = new Map(g.nodes.map((n) => [n.id, S(L.pos.get(n.id))]));
     const labels = [], zoom = view.k / Math.min(W / (W0 + 60), H / (H0 + 120));
-    // crowded plates get smaller stars (readable at 20k entries); a typical install keeps full size
+    // crowded maps get smaller stars (readable at 20k entries); a typical install keeps full size
     const density = Math.min(1, Math.max(0.35, Math.sqrt(600 / Math.max(1, g.nodes.length))) * Math.max(1, Math.sqrt(zoom) * 0.8));
     // relations: constellation lines (short, within a cluster) always; others only around the selection.
     // Plain constellation lines are batched into one path per (pattern, dim): one stroke instead of thousands.
@@ -413,8 +324,6 @@ views.galaxy = async () => {
     }
     // core and its real-event rings
     const core = S(CORE);
-    ctx.strokeStyle = INK + "0.6)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(core[0], core[1], 5, 0, 7); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(core[0] - 9, core[1]); ctx.lineTo(core[0] + 9, core[1]); ctx.moveTo(core[0], core[1] - 9); ctx.lineTo(core[0], core[1] + 9); ctx.stroke();
     for (let i = ringsAt.length - 1; i >= 0; i--) {
       const k = (t - ringsAt[i]) / 1600; if (k > 1) { ringsAt.splice(i, 1); continue; }
       ctx.strokeStyle = `rgba(232, 196, 106, ${0.7 * (1 - k)})`; ctx.beginPath(); ctx.arc(core[0], core[1], 6 + k * 40, 0, 7); ctx.stroke();
@@ -474,7 +383,7 @@ views.galaxy = async () => {
       ctx.fillStyle = rk ? GOLD : focus && n.id === focus.id ? "#f3ead2" : hub ? INK + "0.85)" : INK + "0.7)";
       ctx.fillText(text, p[0], y);
     }
-    // pulses: from the brainstem to what was actually served
+    // pulses: from Astroglia (gold mark) to what was actually served
     for (let i = pulses.length - 1; i >= 0; i--) {
       const pu = pulses[i], k = (t - pu.t0) / 1300;
       if (k > 1) { flares.set(pu.id, t); pulses.splice(i, 1); continue; }
@@ -510,7 +419,7 @@ views.galaxy = async () => {
     canvas.style.cursor = best ? "pointer" : "grab";
     if (best) {
       $tip.hidden = false;
-      fill($tip, h("div", {}, best.title), h("div.muted", {}, `${best.kind.replace("_", " ")} · ${REGION[regionOf(best)].label.toLowerCase()} · ${best.status}${best.project ? " · " + best.project : ""}`));
+      fill($tip, h("div", {}, best.title), h("div.muted", {}, `${best.kind.replace("_", " ")} · ${best.status}${best.project ? " · " + best.project : ""}`));
       $tip.style.left = e.clientX + 14 + "px"; $tip.style.top = e.clientY + 14 + "px";
     } else $tip.hidden = true;
   });
@@ -581,14 +490,26 @@ views.galaxy = async () => {
         h("button.btn.ghost.small", { type: "button", onclick: () => api("/api/reveal", { id: n.id }).then(() => toast("Opened in your file manager."), (err) => toast(err.message, true)) }, "Show source")),
       h("p.small.muted", {}, "Shift+click another star to trace the path between them."), panel);
     showNode(panel, n.id);
-    const [sx, sy] = S(L.pos.get(n.id)), room = W - Math.min(440, W * 0.42) - 60;
-    if (sx > room) view.x -= sx - room * 0.6;
-    if (sy < 90 || sy > H - 80) view.y += H / 2 - sy;
+    // zoom in until the neighbourhood is readable (never out), and centre it in the space left of the panel
+    const pts = [...focusSet].map((id) => L.pos.get(id)).filter(Boolean), xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const room = W - Math.min(440, W * 0.42) - 60, fitK = Math.min(W / (W0 + 60), H / (H0 + 120));
+    view.k = Math.max(view.k, Math.min(fitK * 6, 260 / Math.max(x1 - x0, y1 - y0, 1)));
+    view.x = 30 + room / 2 - (x0 + x1) / 2 * view.k; view.y = H / 2 - (y0 + y1) / 2 * view.k;
     invalidate();
   }
 
   // live: tail the event log; animate only what actually happened
   let lastEvent = g.last_event, stop = false;
+  // let the stars find their places: visible as it happens, or a single change when the OS asks for reduced motion
+  // (a big map costs ~40 ms to redraw at 20k stars, so while it settles it is redrawn at most 4 times a second)
+  let lastSettleDraw = 0;
+  function settle() {
+    if (stop) return;
+    const settled = L.step(12), t = now();
+    if (settled || (!reduceMotion && (g.nodes.length < 3000 || t - lastSettleDraw > 250))) { lastSettleDraw = t; invalidate(); }
+    if (!settled) requestAnimationFrame(settle);
+  }
   const describe = (e) => e.kind === "route" ? `Routing “${e.payload.task}” → ${(e.payload.selected || []).length} selected`
     : e.kind.startsWith("memory.") ? `Memory ${e.kind.split(".")[1]}: ${e.payload.title || e.payload.id || ""}`
     : e.kind === "wake" ? `Session wake-up (${e.payload.elapsed_ms} ms)` : e.kind === "feedback" ? `Feedback: ${e.payload.useful ? "useful" : "not useful"}`
@@ -612,7 +533,7 @@ views.galaxy = async () => {
       }
       if (refresh) {
         const before = new Set(g.nodes.map((n) => n.id));
-        Object.assign(g, await loadGraph(true)); L = atlasLayout(g.nodes);
+        Object.assign(g, await loadGraph(true)); L = organize(g.nodes, g.edges, L.snapshot()); settle();
         const t = now(); for (const n of g.nodes) if (!before.has(n.id)) births.set(n.id, t);
         staticVer++;
       }
@@ -628,6 +549,7 @@ views.galaxy = async () => {
   }
   addEventListener("resize", resize); resize();
   raf = requestAnimationFrame(loop);
+  settle();
   poll();
   const setTime = (v) => {
     timeSlider.value = v;
