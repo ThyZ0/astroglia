@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
-## [Unreleased]
+## [0.10.0] - 2026-11-24
 ### Added
 - **Déjà vu**: when a shell command fails (PostToolUseFailure on Bash/PowerShell), Astroglia checks whether the same error was already solved and remembered, and tells Claude with the matched terms. Only the lines that state the error are analysed, and it speaks only on a strong match. Replayed on 35 distinct real errors from this install's transcripts: 0 false matches (4 of 10 with the first version, which read the whole output). The consolidation reminder now quotes the errors met in the session, so the saved fix carries the text déjà vu recognises.
 - Anchored memory now also reacts when Claude reads or edits code through Cortex (`cortex_read`, `cortex_card`, `cortex_outline`, `cortex_context`, `cortex_edit`; Cortex ids and project-relative paths resolved; dry runs ignored). Cortex recommends its tools before reading files, so most code reads used to bypass anchored memory. The hook only runs after Cortex has answered and only adds context.
