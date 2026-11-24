@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
-## [Unreleased]
+## [0.9.0] - 2026-11-24
 ### Added
 - `bench/holdout-tasks.json`: 15 routing tasks written separately to check generalisation. It revealed hit@1 0.40 on unseen phrasing.
 - Everyday-word synonyms (todo -> task, workbook -> spreadsheet, mail -> email...) and descriptions for well-known services (Gmail, Slack, Linear, Jira, Notion, GitHub...), whose MCP configuration holds only a command line. Holdout hit@1 0.40 -> 0.80, hit@3 0.53 -> 0.93; local 0.82 -> 0.86.
