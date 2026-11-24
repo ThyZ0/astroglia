@@ -4,6 +4,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
 ### Changed
+- The whole interface follows the Atlas identity instead of a generic dashboard look: serif italic titles and serif numerals, hairline borders instead of shaded cards, one gold accent for actions and selection (contrast 10-11.7:1), navigation sections set in italic. Chart marks keep the validated blue.
 - **The galaxy is replaced by the Atlas**: a brain in lateral section drawn as an anatomical plate crossed with a star chart (graticule, ink outlines, serif region titles, no glow). Regions carry meaning from their real counterparts: frontal lobe = what Claude can do (skills, commands, agents), temporal lobe = what it learned (memory), parietal lobe = projects, occipital lobe = senses (MCP servers), cerebellum = reflexes (hooks), brainstem = Astroglia's core, where pulses start. 2D pan and zoom at the cursor; plugins and projects form constellations through their stored relations; selected relations become gold arcs with direction and type; the view slides so the selected star is never under the side panel; region titles keep a fixed size and fade when zoomed in; labels never overlap. Redraws only when something changes.
 
 ## [0.11.0] - 2026-11-24
