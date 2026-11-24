@@ -79,7 +79,11 @@ views.galaxy = async () => {
   const side = h("aside.galaxy-side", { hidden: true });
   const ticker = h("div.ticker", { "aria-live": "polite" }, "Live: waiting for Astroglia operations…");
   const hidden = new Set();
-  const legend = h("div.legend", {}, h("div.legend-title", {}, "Stars (click to show or hide)"), Object.entries(FAMILY).map(([f, c]) => {
+  const legendOpen = !localStorage.getItem("astroglia-legend-closed");
+  const legendBtn = h("button.btn.ghost.small.legend-toggle", { type: "button", "aria-expanded": String(legendOpen),
+    onclick: () => { const open = legend.hidden; legend.hidden = !open; legendBtn.setAttribute("aria-expanded", String(open));
+      open ? localStorage.removeItem("astroglia-legend-closed") : localStorage.setItem("astroglia-legend-closed", "1"); } }, "Legend");
+  const legend = h("div.legend", { hidden: !legendOpen }, h("div.legend-title", {}, "Stars (click to show or hide)"), Object.entries(FAMILY).map(([f, c]) => {
     const dot = h("span.swatch"); dot.style.background = c;
     const b = h("button.legend-item", { type: "button", "aria-pressed": "true", onclick: () => {
       hidden.has(f) ? hidden.delete(f) : hidden.add(f); b.setAttribute("aria-pressed", String(!hidden.has(f))); if (reduceMotion) draw(now());
@@ -99,13 +103,14 @@ views.galaxy = async () => {
       h("li", {}, "Shift+click a second star to trace the path between the two."),
       h("li", {}, "Pulses appear only when Claude or you actually use Astroglia: the ticker at the bottom names the event."),
       h("li", {}, "Drag to rotate, scroll or +/− to zoom, arrows also rotate, Esc clears the selection.")),
-    h("button.btn.primary", { type: "button", onclick: () => { localStorage.setItem("astroglia-onboarded", "1"); onboard.hidden = true; } }, "Got it"));
+    h("button.btn.primary", { type: "button", onclick: () => { localStorage.setItem("astroglia-onboarded", "1"); onboard.hidden = true;
+      if (!localStorage.getItem("astroglia-legend-seen")) { localStorage.setItem("astroglia-legend-seen", "1"); } } }, "Got it"));
   const helpBtn = h("button.btn.ghost.small", { type: "button", "aria-label": "How to read the galaxy", onclick: () => { onboard.hidden = false; } }, "?");
   setView(h("div.galaxy-wrap", {}, canvas,
     h("div.galaxy-top", {}, h("div", {}, h("h1", {}, "Galaxy"), h("p.muted.small", {},
       `${g.nodes.length} stars · ${g.edges.length} relations · left: abilities, right: knowledge`)),
       h("div.row", {}, search, voidSel, rotateBtn, helpBtn)),
-    legend, side, ticker, onboard));
+    legendBtn, legend, side, ticker, onboard));
   api("/api/voids").then((vs) => { for (const v of vs) if (v.items.length) voidSel.append(h("option", { value: v.key }, `${v.label} (${v.items.length})`));
     voidSel.voids = vs; if (params().voids) { voidSel.value = params().voids; voidSel.dispatchEvent(new Event("input")); } });
 
@@ -363,6 +368,9 @@ views.galaxy = async () => {
   const describe = (e) => e.kind === "route" ? `Routing “${e.payload.task}” → ${(e.payload.selected || []).length} selected`
     : e.kind.startsWith("memory.") ? `Memory ${e.kind.split(".")[1]}: ${e.payload.title || e.payload.id || ""}`
     : e.kind === "wake" ? `Session wake-up (${e.payload.elapsed_ms} ms)` : e.kind === "feedback" ? `Feedback: ${e.payload.useful ? "useful" : "not useful"}`
+    : e.kind === "served" && e.payload.kind === "anchor" ? `Claude ${e.payload.via === "edit" ? "edited" : "opened"} ${e.payload.file}: ${e.payload.count} remembered entr${e.payload.count > 1 ? "ies" : "y"} served`
+    : e.kind === "served" && e.payload.kind === "dejavu" ? `Déjà vu: a command failed with an error already solved`
+    : e.kind === "served" && e.payload.kind === "brief" ? `Project brief served at session start`
     : e.kind;
   async function poll() {
     if (stop) return;
@@ -383,6 +391,7 @@ views.galaxy = async () => {
           }
         } else if (e.kind === "wake") ringsAt.push(t);
         else if (e.kind === "feedback") (e.payload.ids || []).forEach((id) => flares.set(id, t));
+        else if (e.kind === "served" && e.payload.id && g.byId.has(e.payload.id)) { flares.set(e.payload.id, t); pulses.push({ id: e.payload.id, t0: t }); }
         if (e.kind.startsWith("memory.") || e.kind.startsWith("sync")) refresh = true;
       }
       if (refresh) {

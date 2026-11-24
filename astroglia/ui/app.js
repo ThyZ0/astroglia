@@ -422,9 +422,36 @@ views.memory = async () => {
   refreshList = async () => { nodes = await api(`/api/nodes?kinds=${kinds.join(",")}`); draw(); };
   q.addEventListener("input", draw);
   await refreshList();
+  const projects = (await api("/api/nodes?kinds=project")).map((p) => p.title).sort();
+  const newEntry = () => {
+    list.querySelectorAll("[aria-selected=true]").forEach((x) => x.setAttribute("aria-selected", "false"));
+    const f = (label, el, hint) => h("label", {}, label, el, hint ? h("span.small.muted", {}, hint) : null);
+    const kind = h("select", {}, kinds.map((k) => h("option", { value: k, selected: k === "decision" }, k)));
+    const title = h("input", { required: true, placeholder: "e.g. Checkout uses Stripe idempotency keys" });
+    const summary = h("textarea", { required: true, placeholder: "The fact, and why. One or two sentences Claude can act on." });
+    const body = h("textarea", { placeholder: "Optional details" });
+    const project = h("select", {}, h("option", { value: "" }, "No project"), projects.map((p) => h("option", { value: p }, p)));
+    const files = h("textarea", { placeholder: "C:\\path\\to\\file.py (one per line)" });
+    const save = async (ev) => {
+      ev.preventDefault();
+      try {
+        const r = await api("/api/remember", { kind: kind.value, title: title.value, summary: summary.value, body: body.value,
+          project: project.value, files: files.value });
+        toast(r.similar_existing ? `Saved. Similar entries exist: ${r.similar_existing.map((x) => x.title).join(", ")}` : "Saved.");
+        await refreshList(); showNode(detail, r.id, { editable: true });
+      } catch (err) { toast(err.message, true); }
+    };
+    fill(detail, h("h3", {}, "New memory entry"),
+      h("p.small.muted", {}, "Write what a future Claude session should not have to rediscover. Tie it to the files it is about: it will be shown when Claude opens them, and flagged stale when they change."),
+      h("form.stack", { onsubmit: save }, f("Kind", kind), f("Title", title), f("Summary", summary), f("Details", body),
+        f("Project", project), f("Source files", files, "Full paths, one per line. Leave empty if it is not about specific files."),
+        h("div.row", {}, h("button.btn.primary", { type: "submit" }, "Save"))));
+    title.focus();
+  };
   setView(h("h1", {}, "Memory"),
     h("p.lede", {}, "What the agent has learned. Edits, deletions and merges are versioned and can be restored. Entries tied to files are flagged stale when those files change."),
-    h("div.filters", {}, q, seg), h("div.grid.split", {}, h("div.card", {}, list), detail));
+    h("div.filters", {}, q, seg, h("button.btn.primary", { type: "button", onclick: newEntry }, "+ New entry")),
+    h("div.grid.split", {}, h("div.card", {}, list), detail));
 };
 
 // ---------- projects ----------
@@ -441,6 +468,9 @@ views.projects = async () => {
       const g = c.providers.graphify, cx = c.providers.cortex;
       fill(detail, h("h3", {}, c.project.title), h("p.mono.muted", {}, c.project.ref),
         h("p", {}, c.advice),
+        c.handoff ? h("div.handoff", {}, h("h2", {}, "Where the last session stopped"), h("p", {}, c.handoff)) : null,
+        c.brief ? h("details.brief", {}, h("summary", {}, "Project brief (built from its files, what Claude gets at session start)"),
+          h("pre.body-text", {}, c.brief)) : null,
         h("h2", {}, "Indexes"),
         cx ? h("p", {}, `Cortex: ${cx.files} files, ${cx.symbols} symbols (${cx.languages.join(", ")}). Query with cortex_pack / cortex_ask.`) : h("p.muted", {}, "Not indexed by Cortex."),
         g ? h("div", {}, h("p", {}, `Graphify: ${g.nodes} nodes, ${g.edges} edges. `, g.stale ? h("span.warn", {}, `⚠ stale: built at ${String(g.built_at_commit).slice(0, 8)}, HEAD ${String(g.head).slice(0, 8)}`) : status("active")),
@@ -469,6 +499,7 @@ async function route() {
   document.querySelectorAll("nav a").forEach((a) => a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
   try { await views[view](); } catch (e) { setView(h("h1", {}, "Astroglia"), errorBox(e)); }
 }
+document.getElementById("palette").addEventListener("click", () => openPalette());
 document.getElementById("sync").addEventListener("click", async (e) => {
   const b = e.currentTarget, state = document.getElementById("sync-state");
   b.disabled = true; state.textContent = "Syncing…";
@@ -480,5 +511,44 @@ document.getElementById("sync").addEventListener("click", async (e) => {
   } catch (err) { state.textContent = ""; toast(err.message, true); }
   b.disabled = false;
 });
+// ---------- quick search (Ctrl+K or /) ----------
+let paletteNodes = null;
+async function openPalette() {
+  if (document.querySelector(".palette")) return;
+  const input = h("input", { type: "search", placeholder: "Jump to any skill, tool, memory or project…", "aria-label": "Quick search" });
+  const results = h("ul.list", { role: "listbox" });
+  const box = h("div.palette-backdrop", { onclick: (e) => e.target === box && close() },
+    h("div.palette", { role: "dialog", "aria-label": "Quick search" }, input, results,
+      h("p.small.muted", {}, "↑ ↓ to move · Enter to open · Esc to close")));
+  const close = () => box.remove();
+  let rows = [], sel = 0;
+  const go = (n) => { close(); location.hash = `#/neural?id=${encodeURIComponent(n.id)}`; };
+  const draw = () => {
+    const t = input.value.trim().toLowerCase();
+    rows = !t ? [] : paletteNodes.filter((n) => (n.title + " " + n.id).toLowerCase().includes(t))
+      .sort((a, b) => (a.title.toLowerCase().startsWith(t) ? 0 : 1) - (b.title.toLowerCase().startsWith(t) ? 0 : 1)).slice(0, 8);
+    sel = Math.min(sel, Math.max(rows.length - 1, 0));
+    fill(results, rows.map((n, i) => h("li.item", { role: "option", "aria-selected": String(i === sel), onclick: () => go(n) },
+      h("div.title", {}, h("span", {}, n.title), kindChip(n.kind), n.status !== "active" ? status(n.status) : null),
+      h("div.desc", {}, n.summary || ""))));
+    if (t && !rows.length) fill(results, h("li.empty", {}, "Nothing matches."));
+  };
+  input.addEventListener("input", () => { sel = 0; draw(); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+    else if (e.key === "ArrowDown") { sel = Math.min(sel + 1, rows.length - 1); draw(); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { sel = Math.max(sel - 1, 0); draw(); e.preventDefault(); }
+    else if (e.key === "Enter" && rows[sel]) go(rows[sel]);
+  });
+  document.body.append(box);
+  input.focus();
+  paletteNodes = paletteNodes || await api("/api/nodes");
+  draw();
+}
+addEventListener("keydown", (e) => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
+  if ((e.key === "k" && (e.ctrlKey || e.metaKey)) || (e.key === "/" && !typing)) { e.preventDefault(); openPalette(); }
+});
+
 if (!token) setView(h("h1", {}, "Astroglia"), h("div.error-box", {}, "No access token. Open the UI with the link printed by `astroglia ui`."));
 else addEventListener("load", () => { addEventListener("hashchange", route); route(); });  // after galaxy.js has registered its views

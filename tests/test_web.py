@@ -133,3 +133,17 @@ def test_insights_find_overlaps_missing_links_and_score(server, env):
     assert not [m for m in r2["missing_relations"] if m["src"]["id"] == c["id"]]
     tl = json.loads(server("/api/timeline")[1])
     assert any(e["kind"] == "memory.created" for e in tl)
+
+
+def test_project_card_api_includes_brief_and_handoff_and_user_can_remember(server, env):
+    env["store"].upsert({"id": "project:p", "kind": "project", "title": "p", "source": "provider:projects", "meta": {"root": str(env["tmp"])}})
+    env["store"].upsert({"id": "knowledge:brief:p", "kind": "knowledge", "title": "p: project brief", "source": "provider:brief",
+                         "project": "p", "body": "# Project brief: p"})
+    card = json.loads(server("/api/project?ref=p")[1])
+    assert card["brief"] == "# Project brief: p" and "handoff" in card
+    f = env["tmp"] / "x.py"; f.write_text("a", encoding="utf-8")
+    code, body = server("/api/remember", {"kind": "decision", "title": "Use WAL", "summary": "SQLite WAL for readers", "project": "p",
+                                          "files": f"{f}\n\n"})
+    r = json.loads(body)
+    assert code == 200 and env["store"].get(r["id"])["source"] == "user" and env["store"].get(r["id"])["fingerprint"]
+    assert server("/api/remember", {"title": "x", "summary": "password = hunter2hunter2"})[0] == 400

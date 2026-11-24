@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
 ### Added
+- Projects page: where the last session stopped (handoff note) and the full project brief Claude receives.
+- Memory page: "+ New entry" form to write a decision or experience yourself, tied to its files (`POST /api/remember`, secrets refused, similar entries reported).
+- Quick search (Ctrl+K or /) to jump to any skill, tool, memory or project from any page.
+- The galaxy animates memory served at the file, déjà-vu hits and briefs served (real events, named in the ticker).
+### Fixed
+- Components with their own `display` rule ignored the `hidden` attribute (the galaxy legend could not be closed). The legend is now foldable and stays folded.
 - **Handoff note**: at each turn end, Astroglia records where the session stands in its project (last request typed by the user, files of that project edited, last real error; permission refusals and files outside the project are left out). The next session started in that project shows it in the manifest (skipped when resuming the same session, kept 14 days). Deterministic, local; 176 ms on a 31 MB transcript.
 - Dashboard and Context Monitor show déjà-vu hits; `astroglia value` counts them (`dejavu_served`).
 

@@ -170,10 +170,22 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
         if path == "/api/voids":
             return voids(store)
         if path == "/api/project":
-            return providers.project_card(store, one("ref", "")) or (404, {"error": "unknown project"})
+            card = providers.project_card(store, one("ref", ""))
+            if not card:
+                return 404, {"error": "unknown project"}
+            from .hooks import handoff_line
+            b = store.get(f"knowledge:brief:{card['project']['title']}")
+            return {**card, "handoff": handoff_line(store, card["project"]["title"], None),
+                    "brief": b["body"] if b else None}
         if path == "/api/edge-types":
             return sorted(EDGE_TYPES)
     if method == "POST":
+        if path == "/api/remember":
+            files = [f.strip() for f in str(body.get("files", "")).splitlines() if f.strip()]
+            r = experiences.remember(store, str(body.get("title", "")), str(body.get("summary", "")), str(body.get("body", "")),
+                                     kind=str(body.get("kind", "decision")), project=body.get("project") or None,
+                                     tags=str(body.get("tags", "")).split(), files=files, source="user")
+            return r
         if path == "/api/dismiss":
             from . import insights
             insights.dismiss(store, str(body.get("key", "")))
