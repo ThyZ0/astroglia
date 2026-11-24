@@ -215,6 +215,10 @@ views.galaxy = async () => {
   const search = h("input", { type: "search", placeholder: "Find a star", "aria-label": "Highlight entries by name" });
   const voidSel = h("select", { "aria-label": "Highlight weak zones" }, h("option", { value: "" }, "Weak zones: off"));
   const fitBtn = h("button.btn.ghost.small", { type: "button", title: "Show the whole plate" }, "Fit");
+  const timeSlider = h("input.time-slider", { type: "range", min: 0, max: 1000, value: 1000, "aria-label": "Show the atlas as it was on a date" });
+  const timeLabel = h("span.time-label.small", {}, "now");
+  const playBtn = h("button.btn.ghost.small", { type: "button", title: "Replay how this knowledge grew, in creation order" }, "▶ Growth");
+  const timeCtl = h("div.time-ctl", { title: "Time travel: the atlas as it was on a given day" }, playBtn, timeSlider, timeLabel);
   const side = h("aside.galaxy-side", { hidden: true });
   const ticker = h("div.ticker", { "aria-live": "polite" }, "Live: waiting for Astroglia operations…");
   const hidden = new Set();
@@ -242,7 +246,7 @@ views.galaxy = async () => {
   setView(h("div.galaxy-wrap.atlas-wrap", {}, canvas,
     h("div.galaxy-top", {}, h("div", {}, h("h1.atlas-title", {}, "Atlas"),
       h("p.muted.small", {}, `${g.nodes.length} entries · ${g.edges.length} relations · plate drawn from the local store`)),
-      h("div.row", {}, search, voidSel, fitBtn, h("button.btn.ghost.small", { type: "button", "aria-label": "How to read the atlas", onclick: () => { onboard.hidden = false; } }, "?"))),
+      h("div.row", {}, search, voidSel, timeCtl, fitBtn, h("button.btn.ghost.small", { type: "button", "aria-label": "How to read the atlas", onclick: () => { onboard.hidden = false; } }, "?"))),
     legendBtn, legend, side, ticker, onboard));
   api("/api/voids").then((vs) => { for (const v of vs) if (v.items.length) voidSel.append(h("option", { value: v.key }, `${v.label} (${v.items.length})`));
     voidSel.voids = vs; if (params().voids) { voidSel.value = params().voids; voidSel.dispatchEvent(new Event("input")); } });
@@ -254,7 +258,11 @@ views.galaxy = async () => {
   let hover = null, selected = null, highlight = null, focusSet = null, path = null, active = null, proj = [];
   const births = new Map(), flares = new Map(), pulses = [], ringsAt = [];
   const now = () => performance.now();
-  const visible = (n) => n && !hidden.has(familyOf(n.kind));
+  // Time travel: the plate as it was at `timeCut` (entries' real creation dates); null = now.
+  const born = g.nodes.map((n) => Date.parse(n.created)).filter((x) => !isNaN(x));
+  const tMin = Math.min(...born), tMax = Date.now();
+  let timeCut = null;
+  const visible = (n) => n && !hidden.has(familyOf(n.kind)) && (timeCut === null || !(Date.parse(n.created) > timeCut));
   const ekey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
   const fit = () => { view.k = Math.min(W / (W0 + 60), H / (H0 + 120)); view.x = (W - W0 * view.k) / 2; view.y = (H - H0 * view.k) / 2 + 20; };
   const S = ([x, y]) => [view.x + x * view.k, view.y + y * view.k];
@@ -598,7 +606,38 @@ views.galaxy = async () => {
   addEventListener("resize", resize); resize();
   raf = requestAnimationFrame(loop);
   poll();
-  viewCleanup = () => { stop = true; cancelAnimationFrame(raf); removeEventListener("resize", resize); $tip.hidden = true; };
+  const setTime = (v) => {
+    timeSlider.value = v;
+    timeCut = v >= 1000 ? null : tMin + (tMax - tMin) * (v / 1000);
+    const shown = g.nodes.filter((n) => visible(n)).length;
+    timeLabel.textContent = timeCut === null ? "now" : `${new Date(timeCut).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · ${shown} entries`;
+    invalidate();
+  };
+  timeSlider.addEventListener("input", () => { playing = false; playBtn.textContent = "▶ Growth"; setTime(+timeSlider.value); });
+  let playing = false;
+  playBtn.addEventListener("click", () => {
+    if (playing) { playing = false; playBtn.textContent = "▶ Growth"; return; }
+    if (!isFinite(tMin)) return;
+    playing = true; playBtn.textContent = "❚❚ Pause";
+    const start = performance.now(), from = +timeSlider.value >= 1000 ? 0 : +timeSlider.value, dur = 7000 * (1 - from / 1000);
+    const step = (t) => {
+      if (!playing || stop) return;
+      const v = Math.min(1000, from + (1000 - from) * ((t - start) / Math.max(dur, 1)));
+      setTime(Math.round(v));
+      if (v < 1000) requestAnimationFrame(step); else { playing = false; playBtn.textContent = "▶ Growth"; }
+    };
+    if (reduceMotion) {  // user asked for it, but no continuous motion: ten discrete stages, half a second apart
+      let v = from;
+      const tick = () => {
+        if (!playing || stop) return;
+        v = Math.min(1000, v + 100); setTime(v);
+        if (v < 1000) setTimeout(tick, 500); else { playing = false; playBtn.textContent = "▶ Growth"; }
+      };
+      setTime(from); setTimeout(tick, 500);
+    } else requestAnimationFrame(step);
+  });
+  if (!isFinite(tMin) || tMax - tMin < 60000) timeCtl.hidden = true;  // nothing to replay yet
+  viewCleanup = () => { stop = true; playing = false; cancelAnimationFrame(raf); removeEventListener("resize", resize); $tip.hidden = true; };
 };
 
 // ---------- Neural view: one entry and its neighbourhood ----------

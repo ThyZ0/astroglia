@@ -259,3 +259,11 @@ pre.diff { max-height: 320px; overflow: auto; font-size: 12px; }
 .item[aria-selected="true"] { border-color: rgba(232, 196, 106, .4); background: rgba(232, 196, 106, .05); }
 .btn { border-radius: 3px; }
 input, textarea, select { border-radius: 3px; }
+
+.time-ctl { display: flex; align-items: center; gap: 8px; padding: 0 6px; border: 1px solid rgba(196, 210, 236, .14); border-radius: 3px; background: rgba(11, 17, 32, .8); height: 36px; }
+.time-slider { width: 110px; accent-color: var(--accent); padding: 0; border: 0; background: transparent; }
+.time-label { min-width: 0; white-space: nowrap; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.galaxy-top .row { flex-wrap: nowrap; }
+.galaxy-top .row > input[type=search] { min-width: 0; width: 150px; }
+.galaxy-top .row > select { min-width: 0; width: 170px; }
+.galaxy-top p.small { white-space: nowrap; }
