@@ -65,302 +65,397 @@ function sprite(color) {
   sprites.set(color, c); return c;
 }
 
-// ---------- Galaxy view ----------
+// ---------- Atlas view: the brain as an anatomical plate drawn like a star chart ----------
+// Each region holds what its real counterpart does: frontal = what Claude can do (skills, commands, agents),
+// temporal = what it learned (memory), parietal = projects, occipital = senses (MCP servers), cerebellum =
+// reflexes (hooks), brainstem = Astroglia's core. Stars are stored entries; lines are stored relations.
+const W0 = 1000, H0 = 720;  // world units of the plate
+const BRAIN = {
+  cerebrum: "M150 430 C110 360 115 250 175 185 C235 115 345 70 465 62 C590 54 710 80 790 140 C860 192 900 262 898 340 " +
+    "C896 395 872 440 830 462 C790 482 745 486 705 478 C660 470 615 482 580 500 C520 532 440 545 380 530 " +
+    "C320 515 285 480 270 445 C250 455 205 462 150 430 Z",
+  cerebellum: "M632 505 C676 474 800 476 848 506 C884 528 878 590 826 606 C770 624 690 618 646 596 C612 578 606 525 632 505 Z",
+  stem: "M566 506 C586 548 592 602 597 690 C608 697 630 697 641 690 C641 628 647 572 670 520 C642 506 598 500 566 506 Z",
+  // sulci (drawn as ink hairlines, also used to split the cerebrum into lobes)
+  sylvian: [[285, 455], [360, 420], [470, 382], [610, 345]],
+  central: [[478, 63], [470, 150], [450, 262], [432, 395]],
+  parieto: [[738, 108], [760, 180], [770, 252], [762, 330], [742, 410], [722, 478]],
+  folds: ["M210 300 C260 270 300 280 330 250", "M190 380 C240 360 290 370 330 340", "M260 190 C300 170 340 180 380 150",
+    "M350 300 C380 270 410 280 430 250", "M540 120 C560 170 600 190 640 170", "M560 250 C600 230 640 250 680 220",
+    "M520 330 C560 310 600 320 640 300", "M800 220 C830 250 840 290 860 320", "M420 470 C470 455 520 460 560 440",
+    "M380 500 C430 492 480 498 520 480", "M652 512 C712 500 788 504 840 520", "M640 540 C708 530 790 536 852 548",
+    "M642 566 C710 560 790 566 850 574", "M656 590 C716 588 784 592 832 594"],
+};
+const REGION = {
+  frontal: { label: "Lobus frontalis", what: "what Claude can do", at: [235, 250] },
+  parietal: { label: "Lobus parietalis", what: "projects", at: [600, 160] },
+  occipital: { label: "Lobus occipitalis", what: "senses: MCP servers", at: [830, 280] },
+  temporal: { label: "Lobus temporalis", what: "what Claude learned", at: [430, 455] },
+  cerebellum: { label: "Cerebellum", what: "reflexes: hooks", at: [745, 545] },
+};
+const CORE = [612, 640];
+
+function regionOf(n) {
+  if (n.kind === "project" || (MEMORY.has(n.kind) && String(n.source || "").startsWith("provider:"))) return "parietal";
+  if (MEMORY.has(n.kind)) return "temporal";
+  if (n.kind === "mcp_server") return "occipital";
+  if (n.kind === "hook") return "cerebellum";
+  return "frontal";
+}
+const atlasCluster = (n) => {
+  const r = regionOf(n);
+  return r === "parietal" || r === "temporal" ? `${r}:${n.project || "general"}` : `${r}:${n.origin || "user"}`;
+};
+const xAt = (poly, y) => {  // x of a polyline at height y (linear interpolation, clamped)
+  for (let i = 1; i < poly.length; i++) {
+    const [x1, y1] = poly[i - 1], [x2, y2] = poly[i];
+    if ((y - y1) * (y - y2) <= 0 && y1 !== y2) return x1 + (x2 - x1) * (y - y1) / (y2 - y1);
+  }
+  return y < poly[0][1] ? poly[0][0] : poly[poly.length - 1][0];
+};
+const yAt = (poly, x) => xAt(poly.map(([a, b]) => [b, a]), x);
+
+function atlasLayout(nodes) {
+  const probe = document.createElement("canvas").getContext("2d");
+  const paths = { cerebrum: new Path2D(BRAIN.cerebrum), cerebellum: new Path2D(BRAIN.cerebellum) };
+  const inside = (p, x, y) => probe.isPointInPath(paths[p], x, y);
+  const regionAt = (x, y) => {
+    if (inside("cerebellum", x, y)) return "cerebellum";
+    if (!inside("cerebrum", x, y)) return null;
+    if (y > yAt(BRAIN.sylvian, x) && x > 270 && x < 700) return "temporal";
+    if (x < xAt(BRAIN.central, y)) return "frontal";
+    if (x > xAt(BRAIN.parieto, y)) return "occipital";
+    return "parietal";
+  };
+  const nearTitle = (x, y) => Object.values(REGION).some((r) => Math.abs(x - r.at[0]) < 62 && y > r.at[1] - 16 && y < r.at[1] + 18);
+  const deep = (reg, x, y, m) => [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([dx, dy]) => regionAt(x + dx, y + dy) === reg);
+  const groups = new Map();
+  for (const n of nodes) { const k = atlasCluster(n); (groups.get(k) || groups.set(k, []).get(k)).push(n); }
+  const pos = new Map(), centers = new Map(), placed = [];
+  const keys = [...groups.keys()].sort((a, b) => groups.get(b).length - groups.get(a).length);
+  for (const key of keys) {
+    const reg = key.split(":")[0], members = groups.get(key), r = rng(hash(key));
+    const spread = Math.min(70, 10 + Math.sqrt(members.length) * 9);
+    let best = null, bestD = -1;  // best-candidate sampling: clusters spread evenly over their lobe
+    for (let i = 0; i < 400 && !(best && i > 60); i++) {
+      const x = 100 + r() * 820, y = 40 + r() * 600;
+      if (!deep(reg, x, y, Math.min(spread * 0.7, 30)) || nearTitle(x, y)) continue;
+      const d = Math.min(1e9, ...[...centers.entries()].filter(([k]) => k.startsWith(reg)).map(([, c]) => Math.hypot(c[0] - x, c[1] - y)));
+      if (d > bestD) { best = [x, y]; bestD = d; }
+    }
+    best = best || REGION[reg].at;
+    centers.set(key, best);
+    const hub = members.find((m) => m.kind === "plugin" || m.kind === "project");
+    for (const m of members) {
+      if (m === hub) { pos.set(m.id, best); placed.push(best); continue; }
+      const q = rng(hash(m.id));
+      let p = null, pd = -1;
+      for (let i = 0; i < 30; i++) {
+        const a = q() * Math.PI * 2, rad = 8 + Math.sqrt(q()) * spread;
+        const x = best[0] + Math.cos(a) * rad, y = best[1] + Math.sin(a) * rad;
+        if (regionAt(x, y) !== reg || nearTitle(x, y)) continue;
+        const d = Math.min(1e9, ...placed.slice(-400).map((s) => Math.hypot(s[0] - x, s[1] - y)));
+        if (d > pd) { p = [x, y]; pd = d; }
+      }
+      p = p || [best[0] + (q() - 0.5) * 20, best[1] + (q() - 0.5) * 20];
+      pos.set(m.id, p); placed.push(p);
+    }
+  }
+  return { pos, centers, groups };
+}
+
 views.galaxy = async () => {
   setView(loading());
   const g = await loadGraph(true);
   $view.classList.add("bleed");
-  const canvas = h("canvas.galaxy", { role: "img", tabindex: 0, "aria-label":
-    `Galaxy of ${g.nodes.length} entries and ${g.edges.length} relations. Arrow keys rotate, plus and minus zoom. ` +
-    "The same entries are listed as text in Capabilities, Memory, Projects and Voids." });
+  const canvas = h("canvas.galaxy.atlas", { role: "img", tabindex: 0, "aria-label":
+    `Atlas of ${g.nodes.length} entries and ${g.edges.length} relations, drawn as a brain. Arrow keys pan, plus and minus zoom. ` +
+    "The same entries are listed as text in Capabilities, Memory, Projects and Health." });
   const search = h("input", { type: "search", placeholder: "Find a star", "aria-label": "Highlight entries by name" });
-  const rotateBtn = h("button.btn.ghost.small", { type: "button", "aria-pressed": String(!reduceMotion) }, "Rotate");
   const voidSel = h("select", { "aria-label": "Highlight weak zones" }, h("option", { value: "" }, "Weak zones: off"));
+  const fitBtn = h("button.btn.ghost.small", { type: "button", title: "Show the whole plate" }, "Fit");
   const side = h("aside.galaxy-side", { hidden: true });
   const ticker = h("div.ticker", { "aria-live": "polite" }, "Live: waiting for Astroglia operations…");
   const hidden = new Set();
   const legendOpen = !localStorage.getItem("astroglia-legend-closed");
-  const legendBtn = h("button.btn.ghost.small.legend-toggle", { type: "button", "aria-expanded": String(legendOpen),
-    onclick: () => { const open = legend.hidden; legend.hidden = !open; legendBtn.setAttribute("aria-expanded", String(open));
-      open ? localStorage.removeItem("astroglia-legend-closed") : localStorage.setItem("astroglia-legend-closed", "1"); } }, "Legend");
-  const legend = h("div.legend", { hidden: !legendOpen }, h("div.legend-title", {}, "Stars (click to show or hide)"), Object.entries(FAMILY).map(([f, c]) => {
-    const dot = h("span.swatch"); dot.style.background = c;
-    const b = h("button.legend-item", { type: "button", "aria-pressed": "true", onclick: () => {
-      hidden.has(f) ? hidden.delete(f) : hidden.add(f); b.setAttribute("aria-pressed", String(!hidden.has(f))); if (reduceMotion) draw(now());
-    } }, dot, FAMILY_LABEL[f]);
-    return b;
-  }), h("div.small.muted", {}, "◯ plugin · ◇ MCP server · ● other · faint ring = new today"),
-    h("div.legend-title", {}, "Relations"),
-    Object.values(EDGE_STYLE).map((st) => {
-      const line = h("svg", { viewBox: "0 0 28 6", width: 28, height: 6, "aria-hidden": "true" });
-      line.append(h("line", { x1: 1, y1: 3, x2: 27, y2: 3, class: "legend-line", "stroke-dasharray": st.dash.join(" ") || null }));
-      return h("div.row.small", {}, line, st.label);
-    }), h("div.small.muted", {}, "Select a star to see its relations with direction and type."));
-  const onboard = h("div.onboard", { role: "dialog", "aria-label": "How to read the galaxy", hidden: !!localStorage.getItem("astroglia-onboarded") },
-    h("h2", {}, "How to read the galaxy"),
-    h("ul", {}, h("li", {}, "Each star is something Astroglia knows: a skill or tool (left hemisphere), a memory or a project (right)."),
-      h("li", {}, "Each line is a stored relation. Select a star to see its relations, their type and their direction."),
-      h("li", {}, "Shift+click a second star to trace the path between the two."),
-      h("li", {}, "Pulses appear only when Claude or you actually use Astroglia: the ticker at the bottom names the event."),
-      h("li", {}, "Drag to rotate, scroll or +/− to zoom, arrows also rotate, Esc clears the selection.")),
-    h("button.btn.primary", { type: "button", onclick: () => { localStorage.setItem("astroglia-onboarded", "1"); onboard.hidden = true;
-      if (!localStorage.getItem("astroglia-legend-seen")) { localStorage.setItem("astroglia-legend-seen", "1"); } } }, "Got it"));
-  const helpBtn = h("button.btn.ghost.small", { type: "button", "aria-label": "How to read the galaxy", onclick: () => { onboard.hidden = false; } }, "?");
-  setView(h("div.galaxy-wrap", {}, canvas,
-    h("div.galaxy-top", {}, h("div", {}, h("h1", {}, "Galaxy"), h("p.muted.small", {},
-      `${g.nodes.length} stars · ${g.edges.length} relations · left: abilities, right: knowledge`)),
-      h("div.row", {}, search, voidSel, rotateBtn, helpBtn)),
+  const legend = h("div.legend.atlas-legend", { hidden: !legendOpen },
+    h("div.legend-title", {}, "Key (click to show or hide)"),
+    Object.entries(FAMILY).map(([f, c]) => {
+      const dot = h("span.swatch"); dot.style.background = c;
+      const b = h("button.legend-item", { type: "button", "aria-pressed": "true", onclick: () => {
+        hidden.has(f) ? hidden.delete(f) : hidden.add(f); b.setAttribute("aria-pressed", String(!hidden.has(f))); redraw(); } }, dot, FAMILY_LABEL[f]);
+      return b;
+    }),
+    h("div.small.muted", {}, "◯ plugin or project · ◇ MCP server · · other · dashed ring = stale"),
+    h("div.small.muted", {}, "Lines are stored relations. Select a star to see their type and direction; shift+click a second star for the path."));
+  const legendBtn = h("button.btn.ghost.small.legend-toggle", { type: "button", "aria-expanded": String(legendOpen), onclick: () => {
+    const open = legend.hidden; legend.hidden = !open; legendBtn.setAttribute("aria-expanded", String(open));
+    open ? localStorage.removeItem("astroglia-legend-closed") : localStorage.setItem("astroglia-legend-closed", "1"); } }, "Key");
+  const onboard = h("div.onboard", { role: "dialog", "aria-label": "How to read the atlas", hidden: !!localStorage.getItem("astroglia-atlas-onboarded") },
+    h("h2", {}, "How to read the atlas"),
+    h("ul", {}, h("li", {}, "The plate is a brain. Each region holds what its real counterpart does: the frontal lobe what Claude can do, the temporal lobe what it learned, the parietal lobe your projects, the occipital lobe its senses (MCP servers), the cerebellum its reflexes (hooks)."),
+      h("li", {}, "Each star is a stored entry; constellations are a plugin with its skills, or a project with what is known about it. Lines are stored relations only."),
+      h("li", {}, "Pulses leave the brainstem only when Astroglia actually serves something: the strip at the bottom names the event."),
+      h("li", {}, "Drag to move, scroll or +/− to zoom, click a star for its relations, shift+click a second star for the path, Esc to clear.")),
+    h("button.btn.primary", { type: "button", onclick: () => { localStorage.setItem("astroglia-atlas-onboarded", "1"); onboard.hidden = true; } }, "Got it"));
+  setView(h("div.galaxy-wrap.atlas-wrap", {}, canvas,
+    h("div.galaxy-top", {}, h("div", {}, h("h1.atlas-title", {}, "Atlas"),
+      h("p.muted.small", {}, `${g.nodes.length} entries · ${g.edges.length} relations · plate drawn from the local store`)),
+      h("div.row", {}, search, voidSel, fitBtn, h("button.btn.ghost.small", { type: "button", "aria-label": "How to read the atlas", onclick: () => { onboard.hidden = false; } }, "?"))),
     legendBtn, legend, side, ticker, onboard));
   api("/api/voids").then((vs) => { for (const v of vs) if (v.items.length) voidSel.append(h("option", { value: v.key }, `${v.label} (${v.items.length})`));
     voidSel.voids = vs; if (params().voids) { voidSel.value = params().voids; voidSel.dispatchEvent(new Event("input")); } });
 
   const ctx = canvas.getContext("2d");
-  let L = layout(g.nodes), W = 0, H = 0, dpr = 1;
-  const cam = { yaw: -0.5, pitch: 0.18, zoom: 1, auto: !reduceMotion };
-  let hover = null, selected = null, highlight = null, lastMove = 0, proj = [];
-  let focusSet = null, path = null, active = null, camAnim = null;  // neighbourhood of the selection / nodes+edges of a traced path
-  const ekey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
-  const visible = (n) => n && !hidden.has(familyOf(n.kind));
+  let L = atlasLayout(g.nodes), W = 0, H = 0, dpr = 1;
+  const view = { x: 0, y: 0, k: 1 };
+  let hover = null, selected = null, highlight = null, focusSet = null, path = null, active = null, proj = [];
   const births = new Map(), flares = new Map(), pulses = [], ringsAt = [];
   const now = () => performance.now();
-
+  const visible = (n) => n && !hidden.has(familyOf(n.kind));
+  const ekey = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
+  const fit = () => { view.k = Math.min(W / (W0 + 60), H / (H0 + 120)); view.x = (W - W0 * view.k) / 2; view.y = (H - H0 * view.k) / 2 + 20; };
+  const S = ([x, y]) => [view.x + x * view.k, view.y + y * view.k];
   const resize = () => {
-    dpr = devicePixelRatio || 1; W = canvas.clientWidth; H = canvas.clientHeight;
-    canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    dpr = devicePixelRatio || 1; const first = !W; W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr; if (first) fit(); redraw();
   };
-  const project = ([x, y, z]) => {
-    const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-    const x1 = x * cy - z * sy, z1 = x * sy + z * cy, y1 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
-    const s = 2.8 / (2.8 + z2), k = Math.min(W, H) * 0.36 * cam.zoom;
-    return [W / 2 + x1 * s * k, H / 2 - y1 * s * k, z2, s];
-  };
+  const P = { cerebrum: new Path2D(BRAIN.cerebrum), cerebellum: new Path2D(BRAIN.cerebellum), stem: new Path2D(BRAIN.stem),
+    folds: BRAIN.folds.map((d) => new Path2D(d)) };
+  const poly = (pts) => { const p = new Path2D(); pts.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y))); return p; };
+  const sulci = [poly(BRAIN.sylvian), poly(BRAIN.central), poly(BRAIN.parieto)];
+  const INK = "rgba(196, 210, 236,", GOLD = "#e8c46a";
 
-  function outline() {  // faint cortex: latitude and meridian rings of each hemisphere
-    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(120, 160, 230, 0.11)";
-    for (const side of [-1, 1]) {
-      const c = [side * HEMI.gap, 0, 0];
-      for (let i = 1; i < 6; i++) {
-        const lat = -Math.PI / 2 + (i * Math.PI) / 6;
-        ctx.beginPath();
-        for (let j = 0; j <= 48; j++) {
-          const lon = (j / 48) * 2 * Math.PI;
-          const p = project([c[0] + HEMI.r[0] * Math.cos(lat) * Math.cos(lon), c[1] + HEMI.r[1] * Math.sin(lat), c[2] + HEMI.r[2] * Math.cos(lat) * Math.sin(lon)]);
-          j ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
-        }
-        ctx.stroke();
-      }
-      for (let j = 0; j < 6; j++) {
-        const lon = (j / 6) * Math.PI; ctx.beginPath();
-        for (let i = 0; i <= 32; i++) {
-          const lat = -Math.PI / 2 + (i / 32) * Math.PI;
-          const p = project([c[0] + HEMI.r[0] * Math.cos(lat) * Math.cos(lon), c[1] + HEMI.r[1] * Math.sin(lat), c[2] + HEMI.r[2] * Math.cos(lat) * Math.sin(lon)]);
-          i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
-        }
-        ctx.stroke();
-      }
+  let titleBoxes = [];
+  function plate() {  // graticule, frame, anatomy: drawn in world units
+    ctx.save(); ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, dpr * view.x, dpr * view.y);
+    const lw = 1 / view.k;
+    ctx.lineWidth = lw; ctx.strokeStyle = INK + "0.045)";
+    for (let x = 0; x <= W0; x += 50) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H0); ctx.stroke(); }
+    for (let y = 0; y <= H0; y += 50) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W0, y); ctx.stroke(); }
+    ctx.strokeStyle = INK + "0.22)"; ctx.strokeRect(0, 0, W0, H0); ctx.strokeRect(-8, -8, W0 + 16, H0 + 16);
+    ctx.fillStyle = INK + "0.35)"; ctx.font = `${9}px Georgia, "Times New Roman", serif`; ctx.textAlign = "center";
+    for (let x = 100; x < W0; x += 100) { ctx.fillText(String(x / 10), x, -12); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 6); ctx.stroke(); }
+    ctx.textAlign = "right";
+    for (let y = 100; y < H0; y += 100) { ctx.fillText(String(y / 10), -12, y + 3); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(6, y); ctx.stroke(); }
+    // anatomy: very faint fill, ink outline, hairline folds
+    const fill = ctx.createLinearGradient(0, 60, 0, 690);
+    fill.addColorStop(0, "rgba(120, 150, 210, 0.055)"); fill.addColorStop(1, "rgba(120, 150, 210, 0.02)");
+    for (const p of [P.cerebrum, P.cerebellum, P.stem]) { ctx.fillStyle = fill; ctx.fill(p); }
+    ctx.strokeStyle = INK + "0.5)"; ctx.lineWidth = 1.3 * lw;
+    for (const p of [P.cerebrum, P.cerebellum, P.stem]) ctx.stroke(p);
+    ctx.strokeStyle = INK + "0.28)"; ctx.lineWidth = 1.1 * lw; sulci.forEach((p) => ctx.stroke(p));
+    ctx.strokeStyle = INK + "0.1)"; ctx.lineWidth = lw; P.folds.forEach((p) => ctx.stroke(p));
+    ctx.textAlign = "right"; ctx.font = `italic ${10}px Georgia, serif`; ctx.fillStyle = INK + "0.3)";
+    ctx.fillText("Tabula I. — Encephalon Claudii, sectio lateralis", W0 - 10, H0 - 12);
+    ctx.restore();
+    // region names, like an anatomical plate: fixed size on screen, fading out when zoomed in
+    const zoom = view.k / Math.min(W / (W0 + 60), H / (H0 + 120)), fade = Math.max(0, Math.min(1, (3.2 - zoom) / 1.4));
+    titleBoxes = [];
+    if (!fade) return;
+    ctx.textAlign = "center";
+    for (const [key, r] of [...Object.entries(REGION), ["stem", { label: "Truncus", what: "Astroglia", at: [CORE[0], CORE[1] + 40] }]]) {
+      const dim = active && key !== "stem" && ![...active].some((id) => g.byId.get(id) && regionOf(g.byId.get(id)) === key);
+      const [x, y] = S(r.at);
+      titleBoxes.push([x - 70, y - 14, x + 70, y + 18]);  // star names keep clear of region titles
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = INK + (dim ? "0.13)" : "0.48)");
+      ctx.font = `italic 16px Georgia, "Times New Roman", serif`; ctx.fillText(r.label, x, y);
+      ctx.font = `600 8.5px "Segoe UI", system-ui, sans-serif`; ctx.fillStyle = INK + (dim ? "0.1)" : "0.34)");
+      ctx.fillText(r.what.toUpperCase().split("").join(" "), x, y + 14);
+      ctx.globalAlpha = 1;
     }
   }
 
-  function halos() {  // one soft nebula per real cluster (plugin or project), sized by its member count
-    for (const [key, members] of L.groups) {
-      if (members.length < 3) continue;
-      const fam = familyOf(members[0].kind); if (hidden.has(fam)) continue;
-      const c = project(L.centers.get(key)), k = Math.min(W, H) * 0.36 * cam.zoom * c[3];
-      const r = Math.min(0.2, 0.035 + Math.sqrt(members.length) * 0.022) * 2.4 * k;
-      const g = ctx.createRadialGradient(c[0], c[1], 0, c[0], c[1], r);
-      g.addColorStop(0, FAMILY[fam] + (active ? "0d" : "1c")); g.addColorStop(1, FAMILY[fam] + "00");
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c[0], c[1], r, 0, 7); ctx.fill();
-    }
+  function curve(a, b, bend) {  // a gentle arc between two screen points, like a route on a chart
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+    return [mx - dy / len * len * bend, my + dx / len * len * bend];
   }
 
   function draw(t) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    if (camAnim) {  // ease the camera toward the selected star
-      const k = Math.min(1, (t - camAnim.t0) / 700), e = 1 - Math.pow(1 - k, 3);
-      cam.yaw = camAnim.yaw0 + (camAnim.yaw1 - camAnim.yaw0) * e; cam.zoom = camAnim.z0 + (camAnim.z1 - camAnim.z0) * e;
-      if (k >= 1) camAnim = null;
-    }
-    outline();
-    const P = new Map(g.nodes.map((n) => [n.id, project(L.pos.get(n.id))]));
+    plate();
     const focus = selected || hover;
     active = path ? path.nodes : selected ? focusSet : highlight;
-    halos();
-    const labels = [];
-    // relations
+    const SP = new Map(g.nodes.map((n) => [n.id, S(L.pos.get(n.id))]));
+    const labels = [], zoom = view.k / Math.min(W / (W0 + 60), H / (H0 + 120));
+    // relations: constellation lines (short, within a cluster) always; others only around the selection
     for (const e of g.edges) {
-      const a = P.get(e.src), b = P.get(e.dst); if (!a || !b) continue;
-      if (!visible(g.byId.get(e.src)) || !visible(g.byId.get(e.dst))) continue;
-      const st = edgeStyle(e.type), onPath = path && path.edges.has(ekey(e.src, e.dst));
+      const na = g.byId.get(e.src), nb = g.byId.get(e.dst);
+      if (!visible(na) || !visible(nb)) continue;
+      const a = SP.get(e.src), b = SP.get(e.dst); if (!a || !b) continue;
+      const onPath = path && path.edges.has(ekey(e.src, e.dst));
       const on = !path && focus && (e.src === focus.id || e.dst === focus.id);
+      const local = atlasCluster(na) === atlasCluster(nb);
+      if (!onPath && !on && !local) continue;
       const dim = active && !onPath && !on && !(active.has(e.src) && active.has(e.dst));
-      ctx.setLineDash(st.dash);
-      ctx.strokeStyle = onPath ? "rgba(255, 255, 255, 0.92)" : on ? "rgba(56, 189, 248, 0.85)" : `rgba(170, 190, 230, ${dim ? 0.012 : st.alpha})`;
-      ctx.lineWidth = onPath ? 2.4 : on ? 1.6 : 1;
-      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
-      if (onPath || (on && selected)) {  // direction arrow at the target end + type label
-        const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), tx = b[0] - Math.cos(ang) * 10, ty = b[1] - Math.sin(ang) * 10;
+      const st = edgeStyle(e.type);
+      ctx.setLineDash(on || onPath ? [] : st.dash.map((d) => d * 0.8));
+      ctx.strokeStyle = onPath ? GOLD : on ? "rgba(232, 196, 106, 0.85)" : INK + (dim ? "0.04)" : "0.2)");
+      ctx.lineWidth = onPath ? 2 : on ? 1.3 : 0.8;
+      const c = local ? null : curve(a, b, 0.12);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); c ? ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]) : ctx.lineTo(b[0], b[1]); ctx.stroke();
+      if (on || onPath) {
+        const tx = c ? c[0] * 0.25 + b[0] * 0.75 : b[0], ty = c ? c[1] * 0.25 + b[1] * 0.75 : b[1];
+        const ang = Math.atan2(b[1] - ty, b[0] - tx) || Math.atan2(b[1] - a[1], b[0] - a[0]);
+        const hx = b[0] - Math.cos(ang) * 7, hy = b[1] - Math.sin(ang) * 7;
         ctx.setLineDash([]); ctx.fillStyle = ctx.strokeStyle; ctx.beginPath();
-        ctx.moveTo(tx, ty); ctx.lineTo(tx - Math.cos(ang - 0.45) * 7, ty - Math.sin(ang - 0.45) * 7);
-        ctx.lineTo(tx - Math.cos(ang + 0.45) * 7, ty - Math.sin(ang + 0.45) * 7); ctx.closePath(); ctx.fill();
-        if (labels.length < 40) labels.push([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, st.label]);
+        ctx.moveTo(hx, hy); ctx.lineTo(hx - Math.cos(ang - 0.5) * 6, hy - Math.sin(ang - 0.5) * 6);
+        ctx.lineTo(hx - Math.cos(ang + 0.5) * 6, hy - Math.sin(ang + 0.5) * 6); ctx.closePath(); ctx.fill();
+        if (labels.length < 40) labels.push(c ? [(a[0] + 2 * c[0] + b[0]) / 4, (a[1] + 2 * c[1] + b[1]) / 4, st.label] : [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, st.label]);
       }
     }
     ctx.setLineDash([]);
-    // core
-    const core = project([0, 0, 0]), cs = 26 * core[3] * cam.zoom;
-    ctx.globalAlpha = 0.9; ctx.drawImage(sprite("#7dd3fc"), core[0] - cs, core[1] - cs, cs * 2, cs * 2); ctx.globalAlpha = 1;
-    for (let i = ringsAt.length - 1; i >= 0; i--) {  // core ring = a real wake/route event
+    // core and its real-event rings
+    const core = S(CORE);
+    ctx.strokeStyle = INK + "0.6)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(core[0], core[1], 5, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(core[0] - 9, core[1]); ctx.lineTo(core[0] + 9, core[1]); ctx.moveTo(core[0], core[1] - 9); ctx.lineTo(core[0], core[1] + 9); ctx.stroke();
+    for (let i = ringsAt.length - 1; i >= 0; i--) {
       const k = (t - ringsAt[i]) / 1600; if (k > 1) { ringsAt.splice(i, 1); continue; }
-      ctx.strokeStyle = `rgba(125, 211, 252, ${0.6 * (1 - k)})`; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(core[0], core[1], cs * (0.4 + k * 2.2), 0, 7); ctx.stroke();
+      ctx.strokeStyle = `rgba(232, 196, 106, ${0.7 * (1 - k)})`; ctx.beginPath(); ctx.arc(core[0], core[1], 6 + k * 40, 0, 7); ctx.stroke();
     }
-    // stars, far to near
-    proj = g.nodes.map((n) => [n, P.get(n.id)]).sort((a, b) => b[1][2] - a[1][2]);
-    const day = Date.now() - 864e5;
-    for (const [n, p] of proj) {
+    // stars: crisp symbols, size by kind and use, colour by family
+    proj = [];
+    for (const n of g.nodes) {
       if (!visible(n)) continue;
-      const fam = familyOf(n.kind), color = FAMILY[fam];
+      const p = SP.get(n.id); proj.push([n, p]);
+      if (p[0] < -20 || p[1] < -20 || p[0] > W + 20 || p[1] > H + 20) continue;
+      const color = FAMILY[familyOf(n.kind)];
       const born = births.get(n.id), grow = born ? Math.min(1, (t - born) / 1400) : 1;
       const fl = flares.get(n.id), flare = fl ? Math.max(0, 1 - (t - fl) / 2200) : 0;
-      let size = (n.kind === "project" || n.kind === "plugin" ? 7 : MEMORY.has(n.kind) ? 5 : 4) * (1 + Math.log1p(n.uses) * 0.3);
-      size *= p[3] * cam.zoom * grow * (1 + flare * 1.6);
-      const depth = Math.max(0.35, Math.min(1, 1.1 - p[2] * 0.6));
+      const hub = n.kind === "plugin" || n.kind === "project";
+      let r = (hub ? 3.6 : MEMORY.has(n.kind) ? 2.6 : 2.1) * (1 + Math.log1p(n.uses) * 0.25) * Math.min(1.8, Math.max(0.8, Math.sqrt(zoom)));
+      r *= grow;
       const dim = active && !active.has(n.id);
-      ctx.globalAlpha = dim ? 0.08 : depth;
-      const glow = size * 3.2;
-      ctx.drawImage(sprite(color), p[0] - glow, p[1] - glow, glow * 2, glow * 2);
-      ctx.globalAlpha = dim ? 0.15 : 1;
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.3;
-      if (n.kind === "plugin") { ctx.beginPath(); ctx.arc(p[0], p[1], size, 0, 7); ctx.stroke(); }
-      else if (n.kind === "mcp_server") { ctx.beginPath(); ctx.moveTo(p[0], p[1] - size); ctx.lineTo(p[0] + size, p[1]); ctx.lineTo(p[0], p[1] + size); ctx.lineTo(p[0] - size, p[1]); ctx.closePath(); ctx.fill(); }
-      else { ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(1.2, size * 0.45), 0, 7); ctx.fill(); }
-      if (n.status === "stale") { ctx.setLineDash([2, 2]); ctx.strokeStyle = "#fbbf24"; ctx.beginPath(); ctx.arc(p[0], p[1], size + 3, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
-      if (n.created && Date.parse(n.created) > day && !dim) { ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p[0], p[1], size + 4, 0, 7); ctx.stroke(); }
-      if (focus && n.id === focus.id) { ctx.strokeStyle = "#e8edf7"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(p[0], p[1], size + 7, 0, 7); ctx.stroke(); }
+      ctx.globalAlpha = dim ? 0.18 : 1;
+      if (flare > 0) { ctx.strokeStyle = `rgba(232, 196, 106, ${flare})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(p[0], p[1], r + 4 + (1 - flare) * 10, 0, 7); ctx.stroke(); }
+      ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineWidth = 1.2;
+      if (hub) {
+        ctx.beginPath(); ctx.arc(p[0], p[1], r + 2.2, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(p[0], p[1], 1.7, 0, 7); ctx.fill();
+      } else if (n.kind === "mcp_server") {
+        ctx.beginPath(); ctx.moveTo(p[0], p[1] - r - 1.5); ctx.lineTo(p[0] + r + 1.5, p[1]); ctx.lineTo(p[0], p[1] + r + 1.5); ctx.lineTo(p[0] - r - 1.5, p[1]); ctx.closePath(); ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill();
+      }
+      if (n.status === "stale") { ctx.setLineDash([2, 2]); ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p[0], p[1], r + 4, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
+      if (focus && n.id === focus.id) { ctx.strokeStyle = GOLD; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(p[0], p[1], r + 7, 0, 7); ctx.stroke(); }
       ctx.globalAlpha = 1;
     }
-    // labels: projects and plugins on the near side, plus the focused star
-    ctx.font = "11px Inter, Segoe UI, system-ui, sans-serif"; ctx.textAlign = "center";
-    const boxes = [];  // shared by relation labels and star names: nothing is drawn over something else
-    const overlaps = (b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+    // labels: relation pills first, then names (hubs when zoomed out, every star when zoomed in), never overlapping
+    const boxes = [...titleBoxes], overlaps = (b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+    ctx.font = "10.5px 'Segoe UI', system-ui, sans-serif"; ctx.textAlign = "center";
     for (const [x, y, text] of labels) {
       const w = ctx.measureText(text).width + 10, box = [x - w / 2, y - 8, x + w / 2, y + 7];
-      if (overlaps(box)) continue;
-      boxes.push(box);
-      ctx.fillStyle = "rgba(11, 17, 32, 0.88)"; ctx.fillRect(x - w / 2, y - 8, w, 15);
-      ctx.fillStyle = "#a9b4c9"; ctx.fillText(text, x, y + 3);
+      if (overlaps(box)) continue; boxes.push(box);
+      ctx.fillStyle = "rgba(9, 14, 26, 0.92)"; ctx.fillRect(box[0], box[1], w, 15); ctx.fillStyle = "#d9c38f"; ctx.fillText(text, x, y + 3);
     }
-    ctx.font = "12px Inter, Segoe UI, system-ui, sans-serif";  // nearest first; a label that would overlap an already placed one is skipped
-    const cands = [...proj].reverse().filter(([n, p]) => visible(n) && ((focus && n.id === focus.id) || (path && path.nodes.has(n.id))
-      || (selected && focusSet.has(n.id)) || ((n.kind === "project" || n.kind === "plugin") && p[2] < 0.15 && !active)));
-    if (focus) cands.sort(([a], [b]) => (b.id === focus.id) - (a.id === focus.id));
-    for (const [n, p] of cands) {
-      const text = n.title.length > 34 ? n.title.slice(0, 33) + "…" : n.title, w = ctx.measureText(text).width, y = p[1] - 12 * p[3] * cam.zoom - 6;
-      const box = [p[0] - w / 2 - 4, y - 12, p[0] + w / 2 + 4, y + 3];
-      if (overlaps(box)) continue;
-      boxes.push(box);
-      ctx.fillStyle = focus && n.id === focus.id ? "#e8edf7" : "rgba(169, 180, 201, 0.85)";
+    const named = proj.filter(([n]) => (focus && n.id === focus.id) || (path && path.nodes.has(n.id)) || (selected && focusSet.has(n.id))
+      || (!active && ((n.kind === "plugin" || n.kind === "project") || zoom > 1.9)) || (highlight && highlight.has(n.id) && zoom > 1.2));
+    named.sort(([a], [b]) => (focus && b.id === focus.id) - (focus && a.id === focus.id) || (b.kind === "project" || b.kind === "plugin") - (a.kind === "project" || a.kind === "plugin"));
+    for (const [n, p] of named) {
+      const hub = n.kind === "plugin" || n.kind === "project";
+      ctx.font = hub ? "italic 12px Georgia, 'Times New Roman', serif" : "11px 'Segoe UI', system-ui, sans-serif";
+      const text = n.title.length > 30 ? n.title.slice(0, 29) + "…" : n.title, w = ctx.measureText(text).width, y = p[1] - (hub ? 12 : 8);
+      const box = [p[0] - w / 2 - 3, y - 11, p[0] + w / 2 + 3, y + 3];
+      if (overlaps(box)) continue; boxes.push(box);
+      ctx.fillStyle = focus && n.id === focus.id ? "#f3ead2" : hub ? INK + "0.85)" : INK + "0.7)";
       ctx.fillText(text, p[0], y);
     }
-    // pulses: core -> selected entry, one per real routing pick
+    // pulses: from the brainstem to what was actually served
     for (let i = pulses.length - 1; i >= 0; i--) {
       const pu = pulses[i], k = (t - pu.t0) / 1300;
       if (k > 1) { flares.set(pu.id, t); pulses.splice(i, 1); continue; }
       if (k < 0) continue;
-      const b = P.get(pu.id); if (!b) { pulses.splice(i, 1); continue; }
-      const e = 1 - Math.pow(1 - k, 3), x = core[0] + (b[0] - core[0]) * e, y = core[1] + (b[1] - core[1]) * e;
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.35)"; ctx.beginPath(); ctx.moveTo(core[0], core[1]); ctx.lineTo(x, y); ctx.stroke();
-      ctx.drawImage(sprite("#38bdf8"), x - 10, y - 10, 20, 20);
+      const b = SP.get(pu.id); if (!b) { pulses.splice(i, 1); continue; }
+      const c = curve(core, b, 0.18), e = 1 - Math.pow(1 - k, 3), u = 1 - e;
+      const x = u * u * core[0] + 2 * u * e * c[0] + e * e * b[0], y = u * u * core[1] + 2 * u * e * c[1] + e * e * b[1];
+      ctx.strokeStyle = "rgba(232, 196, 106, 0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(core[0], core[1]); ctx.quadraticCurveTo(c[0], c[1], b[0], b[1]); ctx.stroke();
+      ctx.fillStyle = GOLD; ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 7); ctx.fill();
     }
   }
 
-  let raf = 0, last = now();
-  const loop = (t) => {
-    if (cam.auto && !selected && !camAnim && t - lastMove > 2500) cam.yaw += (t - last) * 0.00005;
-    last = t; draw(t); raf = requestAnimationFrame(loop);
-  };
+  let raf = 0, needs = true;
+  const redraw = () => { needs = true; };
+  const busy = () => pulses.length || ringsAt.length || [...flares.values()].some((f) => now() - f < 2200) || [...births.values()].some((b) => now() - b < 1400);
+  const loop = (t) => { if (needs || busy()) { draw(t); needs = false; } raf = requestAnimationFrame(loop); };
 
-  // interaction
+  // interaction: pan, zoom at cursor, select, path
   let drag = null;
-  canvas.addEventListener("pointerdown", (e) => { drag = [e.clientX, e.clientY, cam.yaw, cam.pitch, false]; canvas.setPointerCapture(e.pointerId); });
+  const zoomAt = (mx, my, f) => { const k = Math.max(0.3, Math.min(8, view.k * f)); view.x = mx - (mx - view.x) * k / view.k; view.y = my - (my - view.y) * k / view.k; view.k = k; redraw(); };
+  canvas.addEventListener("pointerdown", (e) => { drag = [e.clientX, e.clientY, view.x, view.y, false]; canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener("pointermove", (e) => {
     const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
     if (drag) {
       const dx = e.clientX - drag[0], dy = e.clientY - drag[1];
       if (Math.abs(dx) + Math.abs(dy) > 3) drag[4] = true;
-      cam.yaw = drag[2] + dx * 0.006; cam.pitch = Math.max(-1.2, Math.min(1.2, drag[3] + dy * 0.006)); lastMove = now();
-      if (reduceMotion) draw(now());
+      if (drag[4]) { view.x = drag[2] + dx; view.y = drag[3] + dy; redraw(); }
       return;
     }
-    let best = null, bd = 144;
-    for (const [n, p] of proj) { if (!visible(n)) continue; const d = (p[0] - mx) ** 2 + (p[1] - my) ** 2; if (d < bd) { bd = d; best = n; } }
-    hover = best; canvas.style.cursor = best ? "pointer" : "grab";
+    let best = null, bd = 100;
+    for (const [n, p] of proj) { const d = (p[0] - mx) ** 2 + (p[1] - my) ** 2; if (d < bd) { bd = d; best = n; } }
+    if (best !== hover) { hover = best; redraw(); }
+    canvas.style.cursor = best ? "pointer" : "grab";
     if (best) {
-      $tip.hidden = false; fill($tip, h("div", {}, best.title), h("div.muted", {}, `${best.kind.replace("_", " ")} · ${best.status}${best.project ? " · " + best.project : ""}`));
+      $tip.hidden = false;
+      fill($tip, h("div", {}, best.title), h("div.muted", {}, `${best.kind.replace("_", " ")} · ${REGION[regionOf(best)].label.toLowerCase()} · ${best.status}${best.project ? " · " + best.project : ""}`));
       $tip.style.left = e.clientX + 14 + "px"; $tip.style.top = e.clientY + 14 + "px";
     } else $tip.hidden = true;
-    if (reduceMotion) draw(now());
   });
-  canvas.addEventListener("pointerleave", () => { hover = null; $tip.hidden = true; });
+  canvas.addEventListener("pointerleave", () => { hover = null; $tip.hidden = true; redraw(); });
   canvas.addEventListener("pointerup", (e) => {
     if (drag && !drag[4]) (e.shiftKey && selected && hover && hover.id !== selected.id) ? trace(selected, hover) : select(hover);
     drag = null;
   });
-  function trace(from, to) {  // shortest path, relations followed in both directions
-    const prev = new Map([[from.id, null]]), queue = [from.id];
-    while (queue.length && !prev.has(to.id)) {
-      const cur = queue.shift();
-      for (const [o] of g.adj.get(cur) || []) if (!prev.has(o)) { prev.set(o, cur); queue.push(o); }
-    }
-    if (!prev.has(to.id)) { path = null; ticker.textContent = `No path between “${from.title}” and “${to.title}”: they are not connected.`; return; }
-    const ids = []; for (let x = to.id; x; x = prev.get(x)) ids.unshift(x);
-    path = { nodes: new Set(ids), edges: new Set(ids.slice(1).map((x, i) => ekey(ids[i], x))) };
-    ticker.textContent = `Path (${ids.length - 1} step${ids.length > 2 ? "s" : ""}): ` + ids.map((x) => g.byId.get(x).title).join(" → ");
-    if (reduceMotion) draw(now());
-  }
   canvas.addEventListener("dblclick", () => hover && (location.hash = `#/neural?id=${encodeURIComponent(hover.id)}`));
-  canvas.addEventListener("wheel", (e) => { e.preventDefault(); cam.zoom = Math.max(0.5, Math.min(4, cam.zoom * Math.exp(-e.deltaY * 0.001))); lastMove = now(); if (reduceMotion) draw(now()); }, { passive: false });
+  canvas.addEventListener("wheel", (e) => { e.preventDefault(); const r = canvas.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
   canvas.addEventListener("keydown", (e) => {
-    const k = { ArrowLeft: [-0.12, 0, 1], ArrowRight: [0.12, 0, 1], ArrowUp: [0, -0.1, 1], ArrowDown: [0, 0.1, 1], "+": [0, 0, 1.15], "=": [0, 0, 1.15], "-": [0, 0, 1 / 1.15] }[e.key];
-    if (e.key === "Escape") { path = null; return select(null); }
-    if (!k) return;
-    e.preventDefault();
-    cam.yaw += k[0]; cam.pitch = Math.max(-1.2, Math.min(1.2, cam.pitch + k[1])); cam.zoom = Math.max(0.5, Math.min(4, cam.zoom * k[2]));
-    lastMove = now(); if (reduceMotion) draw(now());
+    const step = 60, m = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+    if (e.key === "Escape") { path = null; select(null); return; }
+    if (m) { view.x += m[0]; view.y += m[1]; redraw(); e.preventDefault(); }
+    else if (e.key === "+" || e.key === "=") { zoomAt(W / 2, H / 2, 1.2); e.preventDefault(); }
+    else if (e.key === "-") { zoomAt(W / 2, H / 2, 1 / 1.2); e.preventDefault(); }
   });
-  rotateBtn.addEventListener("click", () => { cam.auto = !cam.auto; rotateBtn.setAttribute("aria-pressed", String(cam.auto)); });
+  fitBtn.addEventListener("click", () => { fit(); redraw(); });
   search.addEventListener("input", () => {
     const q = search.value.trim().toLowerCase();
     highlight = q ? new Set(g.nodes.filter((n) => (n.title + " " + n.id).toLowerCase().includes(q)).map((n) => n.id)) : null;
-    voidSel.value = ""; if (reduceMotion) draw(now());
+    voidSel.value = ""; redraw();
   });
   voidSel.addEventListener("input", () => {
     const v = (voidSel.voids || []).find((x) => x.key === voidSel.value);
     highlight = v ? new Set(v.items.map((i) => i.id)) : null; search.value = "";
     if (v) ticker.textContent = `Weak zone: ${v.label}: ${v.rule}`;
-    if (reduceMotion) draw(now());
+    redraw();
   });
-
+  function trace(from, to) {
+    const prev = new Map([[from.id, null]]), queue = [from.id];
+    while (queue.length && !prev.has(to.id)) { const cur = queue.shift(); for (const [o] of g.adj.get(cur) || []) if (!prev.has(o)) { prev.set(o, cur); queue.push(o); } }
+    if (!prev.has(to.id)) { path = null; ticker.textContent = `No path between “${from.title}” and “${to.title}”: they are not connected.`; redraw(); return; }
+    const ids = []; for (let x = to.id; x; x = prev.get(x)) ids.unshift(x);
+    path = { nodes: new Set(ids), edges: new Set(ids.slice(1).map((x, i) => ekey(ids[i], x))) };
+    ticker.textContent = `Path (${ids.length - 1} step${ids.length > 2 ? "s" : ""}): ` + ids.map((x) => g.byId.get(x).title).join(" → ");
+    redraw();
+  }
   function select(n) {
     selected = n || null; path = null;
-    if (!n) { side.hidden = true; focusSet = null; return; }
+    if (!n) { side.hidden = true; focusSet = null; redraw(); return; }
     focusSet = new Set([n.id, ...(g.adj.get(n.id) || []).map(([o]) => o)]);
-    const [px, , pz] = L.pos.get(n.id);  // turn the brain so the star faces the viewer
-    let yaw1 = Math.atan2(px, pz) + Math.PI; while (yaw1 - cam.yaw > Math.PI) yaw1 -= 2 * Math.PI; while (cam.yaw - yaw1 > Math.PI) yaw1 += 2 * Math.PI;
-    if (reduceMotion) { cam.yaw = yaw1; } else camAnim = { t0: now(), yaw0: cam.yaw, yaw1, z0: cam.zoom, z1: Math.max(cam.zoom, 1.25) };
     side.hidden = false;
     const panel = h("div", {});
     const expand = h("button.btn.ghost.small", { type: "button", onclick: () => {
       for (const id of [...focusSet]) for (const [o] of g.adj.get(id) || []) focusSet.add(o);
-      expand.disabled = true; expand.textContent = `${focusSet.size - 1} within 2 steps`; if (reduceMotion) draw(now());
-    } }, "Expand to 2 steps");
+      expand.disabled = true; expand.textContent = `${focusSet.size - 1} within 2 steps`; redraw(); } }, "Expand to 2 steps");
     fill(side, h("div.row.between", {}, h("strong", {}, `${focusSet.size - 1} direct relation(s)`), h("button.btn.ghost.small", { type: "button", onclick: () => select(null) }, "Close")),
       h("div.row", {}, h("a.btn.small", { href: `#/neural?id=${encodeURIComponent(n.id)}` }, "Explore relations"), expand,
-        h("a.btn.ghost.small", { href: `#/clusters?key=${encodeURIComponent(clusterKey(n))}` }, "Open cluster"),
         h("button.btn.ghost.small", { type: "button", onclick: () => api("/api/reveal", { id: n.id }).then(() => toast("Opened in your file manager."), (err) => toast(err.message, true)) }, "Show source")),
       h("p.small.muted", {}, "Shift+click another star to trace the path between them."), panel);
     showNode(panel, n.id);
-    if (reduceMotion) draw(now());
+    const [sx, sy] = S(L.pos.get(n.id)), room = W - Math.min(440, W * 0.42) - 60;
+    if (sx > room) view.x -= sx - room * 0.6;
+    if (sy < 90 || sy > H - 80) view.y += H / 2 - sy;
+    redraw();
   }
 
   // live: tail the event log; animate only what actually happened
@@ -369,9 +464,8 @@ views.galaxy = async () => {
     : e.kind.startsWith("memory.") ? `Memory ${e.kind.split(".")[1]}: ${e.payload.title || e.payload.id || ""}`
     : e.kind === "wake" ? `Session wake-up (${e.payload.elapsed_ms} ms)` : e.kind === "feedback" ? `Feedback: ${e.payload.useful ? "useful" : "not useful"}`
     : e.kind === "served" && e.payload.kind === "anchor" ? `Claude ${e.payload.via === "edit" ? "edited" : "opened"} ${e.payload.file}: ${e.payload.count} remembered entr${e.payload.count > 1 ? "ies" : "y"} served`
-    : e.kind === "served" && e.payload.kind === "dejavu" ? `Déjà vu: a command failed with an error already solved`
-    : e.kind === "served" && e.payload.kind === "brief" ? `Project brief served at session start`
-    : e.kind;
+    : e.kind === "served" && e.payload.kind === "dejavu" ? "Déjà vu: a command failed with an error already solved"
+    : e.kind === "served" && e.payload.kind === "brief" ? "Project brief served at session start" : e.kind;
   async function poll() {
     if (stop) return;
     try {
@@ -381,38 +475,29 @@ views.galaxy = async () => {
         lastEvent = Math.max(lastEvent, e.id);
         ticker.textContent = `Live · ${new Date(e.ts).toLocaleTimeString()} · ${describe(e)}`;
         const t = now();
-        if (e.kind === "route") {
-          ringsAt.push(t);
-          (e.payload.selected || []).forEach((id, i) => pulses.push({ id, t0: t + i * 180 }));
-          const keys = new Set((e.payload.selected || []).map((id) => g.byId.get(id)).filter(Boolean).map(clusterKey));
-          if (keys.size && !search.value && !voidSel.value) {  // the clusters this search used become more visible
-            highlight = new Set(g.nodes.filter((n) => keys.has(clusterKey(n))).map((n) => n.id));
-            setTimeout(() => { if (!search.value && !voidSel.value) highlight = null; }, 3500);
-          }
-        } else if (e.kind === "wake") ringsAt.push(t);
+        if (e.kind === "route") { ringsAt.push(t); (e.payload.selected || []).forEach((id, i) => pulses.push({ id, t0: t + i * 180 })); }
+        else if (e.kind === "wake") ringsAt.push(t);
         else if (e.kind === "feedback") (e.payload.ids || []).forEach((id) => flares.set(id, t));
-        else if (e.kind === "served" && e.payload.id && g.byId.has(e.payload.id)) { flares.set(e.payload.id, t); pulses.push({ id: e.payload.id, t0: t }); }
+        else if (e.kind === "served" && e.payload.id && g.byId.has(e.payload.id)) { ringsAt.push(t); pulses.push({ id: e.payload.id, t0: t }); }
         if (e.kind.startsWith("memory.") || e.kind.startsWith("sync")) refresh = true;
       }
       if (refresh) {
         const before = new Set(g.nodes.map((n) => n.id));
-        Object.assign(g, await loadGraph(true));
-        L = layout(g.nodes);
-        const t = now();
-        for (const n of g.nodes) if (!before.has(n.id)) births.set(n.id, t);
+        Object.assign(g, await loadGraph(true)); L = atlasLayout(g.nodes);
+        const t = now(); for (const n of g.nodes) if (!before.has(n.id)) births.set(n.id, t);
       }
+      if (evs.length) redraw();
     } catch { ticker.textContent = "Live updates paused: Astroglia UI server not reachable."; }
     if (!stop) setTimeout(poll, 2500);
   }
-
-  resize(); addEventListener("resize", resize);
-  if (params().ids) {  // replay: the resources a routing mobilised (from the Context Monitor)
+  if (params().ids) {
     const ids = params().ids.split(",").filter((i) => g.byId.has(i));
     highlight = new Set(ids);
     setTimeout(() => { const t = now(); ringsAt.push(t); ids.forEach((id, i) => pulses.push({ id, t0: t + i * 180 })); }, 400);
     ticker.textContent = `Replaying a routing: ${ids.length} resource(s) selected · ` + ids.map((i) => g.byId.get(i).title).join(", ");
   }
-  if (reduceMotion) { draw(now()); setInterval(() => !stop && draw(now()), 1000); } else raf = requestAnimationFrame(loop);
+  addEventListener("resize", resize); resize();
+  raf = requestAnimationFrame(loop);
   poll();
   viewCleanup = () => { stop = true; cancelAnimationFrame(raf); removeEventListener("resize", resize); $tip.hidden = true; };
 };

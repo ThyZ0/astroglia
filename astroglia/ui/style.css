@@ -237,3 +237,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-st
 details.changes { margin: 10px 0; border: 1px solid rgba(251, 191, 36, .35); border-radius: 8px; padding: 8px 12px; }
 details.changes summary { cursor: pointer; color: var(--warning); }
 pre.diff { max-height: 320px; overflow: auto; font-size: 12px; }
+
+/* atlas: anatomical plate x star chart */
+.atlas-wrap { background: radial-gradient(70% 60% at 50% 45%, #0f1830 0%, #0a1020 55%, #070b14 100%); }
+.atlas-title { font-family: Georgia, "Iowan Old Style", "Times New Roman", serif; font-style: italic; font-weight: 400; font-size: 26px; letter-spacing: .01em; }
+.atlas-legend { font-family: var(--font); }

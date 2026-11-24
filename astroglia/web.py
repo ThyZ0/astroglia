@@ -63,7 +63,7 @@ MEMORY_KINDS = ("experience", "decision", "knowledge")
 
 def graph(store: Store) -> dict:
     nodes = [{"id": n["id"], "kind": n["kind"], "title": n["title"], "status": n["status"], "project": n["project"],
-              "origin": n["meta"].get("origin"), "uses": n["uses"], "confidence": n["confidence"], "created": n["created"]}
+              "origin": n["meta"].get("origin"), "source": n["source"], "uses": n["uses"], "confidence": n["confidence"], "created": n["created"]}
              for n in store.nodes() if n["status"] != "missing"]
     ids = {n["id"] for n in nodes}
     edges = [{k: e[k] for k in ("src", "dst", "type", "confidence")} for e in store.edges()

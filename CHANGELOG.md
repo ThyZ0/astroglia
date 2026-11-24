@@ -2,6 +2,10 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [Unreleased]
+### Changed
+- **The galaxy is replaced by the Atlas**: a brain in lateral section drawn as an anatomical plate crossed with a star chart (graticule, ink outlines, serif region titles, no glow). Regions carry meaning from their real counterparts: frontal lobe = what Claude can do (skills, commands, agents), temporal lobe = what it learned (memory), parietal lobe = projects, occipital lobe = senses (MCP servers), cerebellum = reflexes (hooks), brainstem = Astroglia's core, where pulses start. 2D pan and zoom at the cursor; plugins and projects form constellations through their stored relations; selected relations become gold arcs with direction and type; the view slides so the selected star is never under the side panel; region titles keep a fixed size and fade when zoomed in; labels never overlap. Redraws only when something changes.
+
 ## [0.11.0] - 2026-11-24
 ### Added
 - **What changed** for a stale entry: the git commits and patches that touched its source files since it was verified, plus uncommitted changes (capped). In the node panel ("What changed since it was recorded") and as the MCP tool `changes(id)`, so Claude can revalidate or update in seconds instead of re-analysing.
