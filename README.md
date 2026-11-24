@@ -102,14 +102,14 @@ Claude Code ──SessionStart hook──► sync (incremental) ─► manifest:
 
 ## Measured
 
-On one real install (74 capabilities, 22 labelled tasks in `bench/local-tasks.json`; relabel it for yours):
+Routing on one real install (74 capabilities). `bench/local-tasks.json` (22 tasks) was written while building the router; `bench/holdout-tasks.json` (15 tasks) was written later to check that changes generalise:
 
-| | hit@1 | hit@3 | recall of expected resources | results per task |
-|---|---|---|---|---|
-| plain BM25 | 0.82 | 0.82 | n/a | all matches |
-| Astroglia `route` | 0.82 | **0.86** | 0.79 | **4.0** (~324 tokens, estimated) |
+| | local hit@1 | local hit@3 | holdout hit@1 | holdout hit@3 | holdout recall |
+|---|---|---|---|---|---|
+| Astroglia 0.8 | 0.82 | 0.86 | 0.40 | 0.53 | 0.46 |
+| + everyday synonyms and known-service descriptions (0.9) | **0.86** | **0.91** | **0.80** | **0.93** | **0.80** |
 
-On capability routing, Astroglia is slightly ahead of plain BM25. Its main gains are elsewhere: fewer, explained results, staleness, briefs. The remaining misses are synonyms ("todo" vs "task"), the known limit of lexical matching.
+The holdout exposed what the first benchmark hid: MCP servers had no description (their configuration only holds a command line), and everyday words ("todo", "workbook", "mail") missed the words tools use. Caveat: the 0.9 glossaries were written after reading the holdout failures, so the holdout is no longer blind; a new blind set is the next check. On these tasks plain BM25 over the same enriched index scores the same hit@1: Astroglia's added value is fewer, explained results (4 instead of every match), staleness and memory, not ranking alone.
 
 Value scenarios (`python bench/value.py <demo-dir>`; assumptions printed with the results):
 

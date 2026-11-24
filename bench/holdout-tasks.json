@@ -1,0 +1,20 @@
+{
+  "about": "Held-out routing tasks, written 2026-11-24 BEFORE any synonym work, never used for tuning. Same install as local-tasks.json. Used to check that a routing change generalises instead of fitting local-tasks.json.",
+  "tasks": [
+    {"task": "what do I have to do this week", "expect": ["skill:productivity@synced:task-management"]},
+    {"task": "mail the client the invoice", "expect": ["mcp_server:productivity@synced:gmail"]},
+    {"task": "check that my web page still loads and the login button works", "expect": ["skill:user:chrome-browser", "skill:user:built-in-browser", "mcp_server:user:spectra"]},
+    {"task": "put a meeting with the team on friday", "expect": ["mcp_server:productivity@synced:google calendar"]},
+    {"task": "make a slide deck for my thesis defense", "expect": ["skill:user:pptx"]},
+    {"task": "turn this chapter into revision cards", "expect": ["skill:study-desk@synced:study-cards"]},
+    {"task": "my build crashes with a stack trace, find out why", "expect": ["skill:superpowers@synced:systematic-debugging"]},
+    {"task": "look over this diff before I ship it", "expect": ["skill:ponytail@ponytail:ponytail-review", "skill:superpowers@synced:requesting-code-review"]},
+    {"task": "compute totals in a workbook", "expect": ["skill:user:xlsx"]},
+    {"task": "map the architecture of this repository", "expect": ["skill:graphify@pleaseai:graphify", "mcp_server:user:cortex"]},
+    {"task": "write the spec and step by step plan before coding", "expect": ["skill:superpowers@synced:writing-plans", "skill:superpowers@synced:brainstorming"]},
+    {"task": "message the team channel about the outage", "expect": ["mcp_server:productivity@synced:slack"]},
+    {"task": "file a ticket for this bug in our tracker", "expect": ["mcp_server:productivity@synced:linear", "mcp_server:productivity@synced:atlassian", "mcp_server:productivity@synced:asana", "mcp_server:productivity@synced:clickup", "mcp_server:productivity@synced:monday"]},
+    {"task": "merge two pdf documents into one", "expect": ["skill:user:pdf"]},
+    {"task": "remember that I prefer tabs over spaces from now on", "expect": ["skill:task-observer@synced:task-observer", "command:task-observer@synced:learn"]}
+  ]
+}

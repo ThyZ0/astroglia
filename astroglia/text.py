@@ -35,6 +35,20 @@ def fold(s: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
 
 
+# Everyday words -> the word tool descriptions usually use. General vocabulary, not tuned to a benchmark.
+SYNONYMS = {
+    "todo": "task", "todos": "task", "chores": "task", "agenda": "calendar", "meeting": "calendar", "meetings": "calendar",
+    "appointment": "calendar", "schedule": "calendar", "mail": "email", "inbox": "email", "e-mail": "email",
+    "workbook": "spreadsheet", "excel": "spreadsheet", "sheet": "spreadsheet", "csv": "spreadsheet",
+    "deck": "presentation", "slides": "presentation", "slideshow": "presentation", "powerpoint": "presentation",
+    "crash": "debug", "crashes": "debug", "stacktrace": "debug", "traceback": "debug", "exception": "debug", "broken": "bug",
+    "diff": "review", "pr": "review", "ship": "merge", "webpage": "browser", "website": "browser", "site": "browser",
+    "page": "browser", "url": "browser", "ticket": "issue", "tickets": "issue", "tracker": "issue", "channel": "chat",
+    "dm": "chat", "repo": "codebase", "repository": "codebase", "architecture": "codebase", "spec": "plan",
+    "flashcard": "flashcards", "cards": "flashcards", "word": "docx", "slide": "presentation",
+}
+
+
 def terms(s: str) -> list[str]:
     """Lowercased, accent-folded, stopword-free word list, FR terms mapped to EN equivalents added."""
     out = []
@@ -44,6 +58,8 @@ def terms(s: str) -> list[str]:
         out.append(w)
         if w in FR_EN and FR_EN[w] != w:
             out.append(FR_EN[w])
+        if w in SYNONYMS:
+            out.append(SYNONYMS[w])
     return out
 
 

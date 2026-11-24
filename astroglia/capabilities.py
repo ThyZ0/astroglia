@@ -77,6 +77,41 @@ def _md_entries(folder: Path, kind: str, origin: str, pattern: str) -> list[dict
     return out
 
 
+# What well-known services do, keyed by a fragment of the server name. Product knowledge, not guesses:
+# an unknown name simply gets no description.
+KNOWN_SERVICES = {
+    "gmail": "Email: read, search, draft and send mail in Gmail",
+    "outlook": "Email and calendar in Microsoft Outlook",
+    "calendar": "Calendar: list, create and update events and meetings",
+    "slack": "Team chat: read and post messages in Slack channels",
+    "discord": "Chat: messages in Discord channels",
+    "teams": "Team chat and meetings in Microsoft Teams",
+    "linear": "Issue tracker: create and update issues and tickets in Linear",
+    "jira": "Issue tracker: Jira issues, tickets and sprints",
+    "atlassian": "Issue tracker and wiki: Jira tickets and Confluence pages",
+    "asana": "Project and task tracker: Asana tasks and projects",
+    "clickup": "Project and task tracker: ClickUp tasks",
+    "monday": "Project and task tracker: monday.com boards and items",
+    "trello": "Task boards: Trello cards and lists",
+    "notion": "Notes, docs and wiki pages in Notion",
+    "github": "GitHub: repositories, pull requests, issues and code review",
+    "gitlab": "GitLab: repositories, merge requests and issues",
+    "drive": "Files and documents in Google Drive",
+    "figma": "Design files in Figma",
+    "postgres": "Database: query a PostgreSQL database",
+    "sqlite": "Database: query a SQLite database",
+    "playwright": "Browser automation: drive a real browser, fill forms, test web pages",
+    "puppeteer": "Browser automation: drive a real browser",
+    "sentry": "Error monitoring: Sentry issues and stack traces",
+    "stripe": "Payments: Stripe customers, charges and invoices",
+}
+
+
+def describe_service(name: str) -> str | None:
+    n = name.lower()
+    return next((d for key, d in KNOWN_SERVICES.items() if key in n), None)
+
+
 def _mcp_entries(servers: dict, origin: str, project: str | None = None) -> list[dict]:
     out = []
     for name, spec in (servers or {}).items():
@@ -84,7 +119,8 @@ def _mcp_entries(servers: dict, origin: str, project: str | None = None) -> list
             continue
         transport = spec.get("type") or ("http" if spec.get("url") else "stdio")
         target = spec.get("url") or " ".join([spec.get("command", ""), *map(str, spec.get("args", []))]).strip()
-        c = _cap("mcp_server", name, name, f"MCP server ({transport}): {target}", None, origin,
+        known = describe_service(name)
+        c = _cap("mcp_server", name, name, (f"{known}. " if known else "") + f"MCP server ({transport}): {target}", None, origin,
                  transport=transport, target=target, env_keys=sorted((spec.get("env") or {}).keys()))
         if project:
             c["project"] = project

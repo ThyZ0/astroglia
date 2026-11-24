@@ -198,3 +198,16 @@ def test_consolidation_counts_cli_saves(env):
     t = _transcript(env["tmp"], [("Edit", {"file_path": "a.py"}), ("Edit", {"file_path": "b.py"}),
                                  ("Bash", {"command": ".venv/Scripts/astroglia remember \"x\" \"y\" --file a.py"})])
     assert hooks.stop({"transcript_path": t, "session_id": "s6"}, env["cfg"]) is None
+
+
+def test_everyday_words_and_known_services_reach_the_right_tool(env):
+    from astroglia import capabilities
+    from astroglia.text import terms
+    assert "task" in terms("my todo list") and "spreadsheet" in terms("a workbook")
+    assert capabilities.describe_service("gmail").startswith("Email")
+    assert capabilities.describe_service("my-internal-thing") is None   # unknown names get no invented description
+    s = env["store"]
+    s.upsert({"id": "mcp_server:user:gmail", "kind": "mcp_server", "title": "gmail", "source": "scan:claude-code",
+              "summary": capabilities.describe_service("gmail") + ". MCP server (http): https://example"})
+    r = router.route(s, env["cfg"], "mail the client the invoice")
+    assert r["selected"][0]["id"] == "mcp_server:user:gmail"

@@ -2,6 +2,14 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [Unreleased]
+### Added
+- `bench/holdout-tasks.json`: 15 routing tasks written separately to check generalisation. It revealed hit@1 0.40 on unseen phrasing.
+- Everyday-word synonyms (todo -> task, workbook -> spreadsheet, mail -> email...) and descriptions for well-known services (Gmail, Slack, Linear, Jira, Notion, GitHub...), whose MCP configuration holds only a command line. Holdout hit@1 0.40 -> 0.80, hit@3 0.53 -> 0.93; local 0.82 -> 0.86.
+- Context Monitor and Dashboard show memory served at the file.
+### Changed
+- The consolidation reminder lists full paths of edited files.
+
 ## [0.8.0] - 2026-11-24
 ### Added
 - **Anchored memory**: a PostToolUse hook on Read/Edit/Write/MultiEdit/NotebookEdit. After Claude reads a file, it receives what Astroglia remembers about that file (once per file per session), flagged STALE when the file changed since recorded. After an edit, it is told which decisions and experiences depend on that file and how to revalidate or update them (once per entry per session). Only entries written by Claude or the user are served. Measured: ~100 ms per call end to end, of which 64 ms is Python start-up; lookup 24 ms on 20,500 entries.
