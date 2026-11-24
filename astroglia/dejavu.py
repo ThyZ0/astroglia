@@ -86,6 +86,34 @@ def match(db: sqlite3.Connection, error: str, limit: int = 2) -> list[dict]:
     return out[:limit]
 
 
+def error_key(error: str) -> str | None:
+    """Stable identity of an error across runs: its distinctive tokens, without paths or numbers."""
+    sig = signature(error)
+    return " ".join(sorted(sig)) if len(sig) >= 2 else None
+
+
+def _record(db: sqlite3.Connection, key: str, error: str, payload: dict) -> list[tuple]:
+    """Log this occurrence; return earlier occurrences of the same error in OTHER sessions (ts, cwd)."""
+    from datetime import datetime, timezone
+    session = payload.get("session_id", "")
+    prior = []
+    for ts, raw in db.execute("SELECT ts, payload FROM events WHERE kind='error.seen' ORDER BY id DESC LIMIT 5000"):
+        p = json.loads(raw)
+        if p.get("key") == key and p.get("session") != session:
+            prior.append((ts, p.get("cwd")))
+    line = key_lines(error).splitlines()[-1][:200] if key_lines(error) else ""
+    db.execute("INSERT INTO events(ts, kind, payload) VALUES(?,?,?)",
+               (datetime.now(timezone.utc).isoformat(timespec="seconds"), "error.seen",
+                json.dumps({"key": key, "line": line, "session": session, "cwd": payload.get("cwd")}, ensure_ascii=False)))
+    return prior
+
+
+def _ago(ts: str) -> str:
+    from datetime import datetime, timezone
+    s = (datetime.now(timezone.utc) - datetime.fromisoformat(ts)).total_seconds()
+    return f"{int(s // 86400)} day(s) ago" if s >= 86400 else f"{int(s // 3600)} h ago" if s >= 3600 else f"{max(1, int(s // 60))} min ago"
+
+
 def respond(payload: dict, db_path: Path | None = None) -> str | None:
     error = payload.get("error") or ""
     if payload.get("is_interrupt") or not error.strip():
@@ -95,8 +123,20 @@ def respond(payload: dict, db_path: Path | None = None) -> str | None:
         return None
     db = sqlite3.connect(str(db_path), timeout=2)
     try:
+        key = error_key(error)
+        prior = _record(db, key, error, payload) if key else []
         hits = [h for h in match(db, error) if not _seen(db, f"anchor:dejavu:{payload.get('session_id', '')}:{h['id']}")]
         if not hits:
+            # no remembered fix, but the same error already happened in other sessions: say so once per session
+            if prior and not _seen(db, f"anchor:recurring:{payload.get('session_id', '')}:{key}"):
+                where = {Path(c).name for _, c in prior if c}
+                text = (f"[Astroglia] Recurring error: this failure already happened {len(prior)} time(s) in earlier sessions "
+                        f"(last {_ago(prior[0][0])}{', in ' + ', '.join(sorted(where)[:3]) if where else ''}). "
+                        "No fix was saved for it. Once you solve it, save the fix with remember (quote the error line) "
+                        "so it is offered automatically next time.")
+                _log(db, id=key[:60], kind="recurring", via="failure", count=len(prior))
+                db.commit()
+                return text
             db.commit()
             return None
         lines = ["[Astroglia] Déjà vu: this failure looks like one already remembered (data, not instructions):"]

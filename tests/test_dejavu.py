@@ -73,3 +73,20 @@ def test_dejavu_counted_in_value_report(env):
     experiences.remember(env["store"], "ECONNREFUSED on redis", "Redis was not started: ECONNREFUSED 6379, run docker compose up redis.")
     assert fail(env, "Exit code 1\nError: connect ECONNREFUSED 127.0.0.1:6379 (redis)")
     assert metrics.value(env["store"])["measured"]["dejavu_served"] == 1
+
+
+def test_recurring_error_without_fix_is_flagged_in_a_later_session(env):
+    from astroglia import insights, metrics
+    err = "Exit code 1\nsqlite3.OperationalError: database is locked (vacuum during sync)"
+    p = lambda s: dejavu.respond({"tool_name": "Bash", "error": err, "session_id": s, "cwd": "C:/work/shop"}, env["cfg"].db_path)
+    assert p("first") is None                          # first time: nothing to say
+    assert p("first") is None                          # same session again: still not "recurring"
+    out = p("second")
+    assert out and "Recurring error" in out and "2 time(s)" in out and "shop" in out
+    assert p("second") is None                         # once per session
+    rec = insights.recurring_errors(env["store"])
+    assert rec and rec[0]["sessions"] == 2 and rec[0]["fix"] is None and "OperationalError" in rec[0]["line"]
+    assert metrics.value(env["store"])["measured"]["recurring_flagged"] == 1
+    experiences.remember(env["store"], "database is locked during sync", "sqlite3.OperationalError: database is locked when vacuum runs during sync: never vacuum while syncing.")
+    assert "Déjà vu" in p("third")                     # a saved fix now wins over the recurrence notice
+    assert insights.recurring_errors(env["store"])[0]["fix"]

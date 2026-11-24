@@ -613,6 +613,13 @@ views.voids = async () => {
           h("p.small.muted", {}, o.advice),
           h("div.row", {}, act("Merge 2nd into 1st", () => api("/api/merge", { src: o.b.id, dst: o.a.id }), "btn.small"),
             act("Not the same", () => api("/api/dismiss", { key: o.key }))))) : h("p.empty", {}, "No overlapping entries."))),
+    h("div.card", {}, h("h2", {}, `Recurring errors (${r.recurring_errors.length})`),
+      h("p.small.muted", {}, "The same failure seen in at least two sessions. Those without a remembered fix cost time every time they come back."),
+      r.recurring_errors.length ? h("ul.list.stack", {}, r.recurring_errors.map((x) => h("li", {},
+        h("div.mono", {}, x.line || "(no error line)"),
+        h("div.small.muted", {}, `${x.count}× in ${x.sessions} sessions · last ${new Date(x.last).toLocaleString()}${x.projects.length ? " · " + x.projects.join(", ") : ""} · `,
+          x.fix ? h("a", { href: `#/neural?id=${encodeURIComponent(x.fix)}` }, "fix remembered") : h("span.warn", {}, "no fix saved")))))
+        : h("p.empty", {}, "No error has come back across sessions yet.")),
     h("div.card", {}, h("h2", {}, "Capabilities never selected"),
       r.unused_note ? h("p.small.muted", {}, r.unused_note) : r.unused_capabilities.length
         ? h("p.small", {}, r.unused_capabilities.map((x) => x.title).join(" · ")) : h("p.empty", {}, "Every capability has been used at least once.")),

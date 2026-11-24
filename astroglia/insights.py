@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import re
 
 from .capabilities import similarity
@@ -84,6 +85,26 @@ def usage(store: Store) -> tuple[dict, int]:
     return counts, routings
 
 
+def recurring_errors(store: Store, limit: int = 10) -> list[dict]:
+    """Errors seen in at least two sessions, with whether a remembered entry matches them."""
+    from . import dejavu
+    groups: dict[str, dict] = {}
+    for ts, raw in store.db.execute("SELECT ts, payload FROM events WHERE kind='error.seen' ORDER BY id"):
+        p = json.loads(raw)
+        g = groups.setdefault(p["key"], {"key": p["key"], "line": p.get("line", ""), "sessions": set(), "count": 0, "last": ts, "projects": set()})
+        g["sessions"].add(p.get("session")); g["count"] += 1; g["last"] = ts; g["line"] = p.get("line") or g["line"]
+        if p.get("cwd"):
+            g["projects"].add(Path(p["cwd"]).name)
+    out = []
+    for g in groups.values():
+        if len(g["sessions"]) < 2:
+            continue
+        fix = dejavu.match(store.db, g["line"]) if g["line"] else []
+        out.append({"line": g["line"], "count": g["count"], "sessions": len(g["sessions"]), "last": g["last"],
+                    "projects": sorted(g["projects"]), "fix": fix[0]["id"] if fix else None})
+    return sorted(out, key=lambda x: (x["fix"] is not None, -x["sessions"], x["last"]))[:limit]
+
+
 def report(store: Store) -> dict:
     counts, routings = usage(store)
     nodes = store.nodes()
@@ -116,6 +137,7 @@ def report(store: Store) -> dict:
         "unused_capabilities": unused,
         "unused_note": None if routings >= MIN_ROUTINGS_FOR_UNUSED else
         f"Needs at least {MIN_ROUTINGS_FOR_UNUSED} routings to tell what is never used ({routings} so far).",
+        "recurring_errors": recurring_errors(store),
         "most_served": [{"id": i, "title": store.get(i)["title"], "kind": store.get(i)["kind"], "times": c} for c, i in top],
         "routings": routings,
     }

@@ -175,6 +175,7 @@ function valuePanel(v) {
   return h("div.card", {}, h("h2", {}, "What Astroglia did, last 30 days"),
     h("div.value-grid", {},
       row(m.briefs_served, "project briefs served", "Each brief replaces re-reading the project's manifests and README"),
+      row(m.recurring_flagged, "recurring errors flagged", "Failures already seen in earlier sessions with no saved fix"),
       row(m.dejavu_served, "déjà vu on errors", "Remembered fixes offered when a command failed with an error already solved"),
       row(m.anchored_served, "served at the file", "Remembered entries delivered when Claude read or edited the file they are about, without any query"),
       row(m.memory_served, "memory entries served", "Experiences, decisions and knowledge returned by routing"),

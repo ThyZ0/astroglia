@@ -17,7 +17,7 @@ def value(store: Store, days: int | None = None) -> dict:
     if days:
         from datetime import datetime, timedelta, timezone
         args = ((datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds"),)
-    m = dict.fromkeys(("routings", "routings_with_results", "memory_served", "briefs_served", "anchored_served", "dejavu_served", "stale_warnings",
+    m = dict.fromkeys(("routings", "routings_with_results", "memory_served", "briefs_served", "anchored_served", "dejavu_served", "recurring_flagged", "stale_warnings",
                        "project_cards_served", "entries_fetched", "memories_saved", "duplicates_flagged",
                        "consolidations_asked", "feedback_useful", "feedback_not_useful", "sessions"), 0)
     brief_bytes = 0
@@ -37,6 +37,8 @@ def value(store: Store, days: int | None = None) -> dict:
             if p.get("kind") == "brief":
                 m["briefs_served"] += 1
                 brief_bytes += p.get("bytes", 0)
+            elif p.get("kind") == "recurring":
+                m["recurring_flagged"] += 1
             elif p.get("kind") == "dejavu":
                 m["dejavu_served"] += p.get("count", 1)
             elif p.get("kind") == "anchor":
