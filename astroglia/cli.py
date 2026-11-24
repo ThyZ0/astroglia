@@ -136,7 +136,7 @@ def cmd_doctor(cfg, a):
                     and n["meta"].get("transport", "stdio") == "stdio" and not n["meta"].get("probe")]
         s.close()
         check("local MCP servers probed (optional)", not unprobed,
-              f"run `astroglia probe` so routing knows what {', '.join(unprobed)} can do" if unprobed else "")
+              f"with Claude Code closed, run `astroglia probe` so routing knows what {', '.join(unprobed)} can do" if unprobed else "")
     _out(checks)
     return 0 if all(c["ok"] for c in checks if "optional" not in c["check"] and "installed" not in c["check"]
                     and "registered" not in c["check"]) else 1

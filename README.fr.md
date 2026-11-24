@@ -77,6 +77,15 @@ La référence « sans » parcourt toute l'arborescence et lit README et manifes
 
 Charge (`python bench/load.py`) : routage sur 20 500 entrées en 43 ms ; vérification de fraîcheur de 500 entrées inchangées en 71 ms (989 ms avant) ; la galaxie affiche 20 000 étoiles et 40 000 relations à environ 70 images/s.
 
+## Cohabitation avec vos autres outils
+
+Astroglia ne doit jamais gêner les outils vers lesquels il pointe. Vérifié sur une installation réelle avec Cortex et Spectra en marche :
+
+- **Cortex** : au démarrage, Astroglia lance `cortex list` et `cortex stats` (lecture seule, l'index n'est pas modifié). Il ne réindexe jamais et n'appelle jamais le serveur MCP de Cortex.
+- **Graphify** : lecture de `graphify-out/graph.json` uniquement.
+- **Spectra et autres serveurs MCP** : le hook de fichiers ne réagit qu'aux outils `Read/Edit/Write` de Claude Code, jamais aux outils MCP. `astroglia probe` refuse de démarrer un serveur déjà en cours d'exécution, car une deuxième copie peut perturber celle utilisée (Spectra ferme au démarrage les Chrome qu'il croit orphelins). Lancez-le avec Claude Code fermé.
+- Chaque hook a un délai maximal et ne bloque jamais : si Astroglia plante, Claude Code et ses serveurs continuent normalement.
+
 ## Confidentialité et sécurité
 
 - Tout est local (`~/.astroglia/astroglia.db`). Aucune télémétrie, aucun appel réseau.

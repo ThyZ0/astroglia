@@ -4,6 +4,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
 ### Fixed
+- `astroglia probe` could start a second copy of a server already used by Claude Code. Spectra, at start-up, closes Chrome instances it considers orphaned, so a probe could disturb a live browser session. Probe now skips any server whose program is running.
 - Stale warnings delivered by anchored memory were not counted in `astroglia value` (dashboard showed 2 stale entries, 0 warnings).
 ### Performance
 - Session start: every sync committed each of ~170 unchanged rows separately. `Store.batch()` groups a sync into one transaction: Astroglia's part of start-up 146-1064 ms -> 119-142 ms on a real install (whole hook incl. Python start-up: 330-880 ms -> ~300 ms).

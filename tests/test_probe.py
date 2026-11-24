@@ -26,14 +26,29 @@ def test_probe_learns_tools_and_sync_keeps_them(env):
     env["cfg"].claude_json.write_text(json.dumps(cj), encoding="utf-8")
     sync = lambda: capabilities.sync(env["store"], env["cfg"].claude_dir, env["cfg"].claude_json)
     sync()
-    rep = {r["server"]: r for r in probe.probe(env["store"], cj["mcpServers"])}
+    rep = {r["server"]: r for r in probe.probe(env["store"], cj["mcpServers"], running=set())}
     assert rep["codemap"]["result"] == "ok" and rep["codemap"]["tools"] == 1
     assert rep["db"]["result"] == "failed"                      # a missing program is recorded, not fatal
     n = env["store"].get("mcp_server:user:codemap")
     assert "callers" in n["summary"] and "renamed" in n["body"]
     sync()                                                       # a normal sync must not erase what was learned
     assert "callers" in env["store"].get("mcp_server:user:codemap")["summary"]
-    again = {r["server"]: r["result"] for r in probe.probe(env["store"], cj["mcpServers"])}
+    again = {r["server"]: r["result"] for r in probe.probe(env["store"], cj["mcpServers"], running=set())}
     assert again["codemap"] == "unchanged since last probe" and again["db"] == "unchanged since last probe"
     r = router.route(env["store"], env["cfg"], "who calls this function and what breaks if I rename it")
     assert r["selected"][0]["id"] == "mcp_server:user:codemap"
+
+
+def test_probe_never_starts_a_second_copy_of_a_running_server(env):
+    cj = json.loads(env["cfg"].claude_json.read_text(encoding="utf-8"))
+    cj["mcpServers"]["browser"] = {"type": "stdio", "command": "C:/tools/spectra-server.exe", "args": []}
+    env["cfg"].claude_json.write_text(json.dumps(cj), encoding="utf-8")
+    capabilities.sync(env["store"], env["cfg"].claude_dir, env["cfg"].claude_json)
+    rep = {r["server"]: r["result"] for r in probe.probe(env["store"], cj["mcpServers"], running={"spectra-server.exe"})}
+    assert rep["browser"].startswith("skipped: already running")
+
+
+def test_running_programs_lists_this_python():
+    import os
+    names = probe.running_programs()
+    assert names and os.path.basename(sys.executable).lower() in names
