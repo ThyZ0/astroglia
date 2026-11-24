@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 ### Added
 - `bench/holdout-tasks.json`: 15 routing tasks written separately to check generalisation. It revealed hit@1 0.40 on unseen phrasing.
 - Everyday-word synonyms (todo -> task, workbook -> spreadsheet, mail -> email...) and descriptions for well-known services (Gmail, Slack, Linear, Jira, Notion, GitHub...), whose MCP configuration holds only a command line. Holdout hit@1 0.40 -> 0.80, hit@3 0.53 -> 0.93; local 0.82 -> 0.86.
+- `bench/blind-tasks.json`, run once: hit@1 0.67, hit@3 0.67, recall 0.70 (BM25: 0.60). Not to be tuned against.
 - Context Monitor and Dashboard show memory served at the file.
 ### Changed
 - The consolidation reminder lists full paths of edited files.

@@ -1,0 +1,20 @@
+{
+  "about": "Blind routing tasks, written 2026-11-24 after the 0.9 glossaries and run once without any change afterwards. Do not tune against this file: write a new one instead.",
+  "tasks": [
+    {"task": "jot down that we decided to use postgres for billing", "expect": ["skill:task-observer@synced:task-observer", "skill:productivity@synced:memory-management"]},
+    {"task": "the unit tests pass locally but fail in CI, help", "expect": ["skill:superpowers@synced:systematic-debugging"]},
+    {"task": "give me a morning summary of my day", "expect": ["skill:user:morning"]},
+    {"task": "convert my lecture into practice questions", "expect": ["skill:study-desk@synced:study-quiz"]},
+    {"task": "grade my answer to question 4", "expect": ["skill:study-desk@synced:study-grade"]},
+    {"task": "simplify this over-complicated function", "expect": ["skill:ponytail@ponytail:ponytail", "skill:ponytail@ponytail:ponytail-audit"]},
+    {"task": "draft a project proposal document to share with my teacher", "expect": ["skill:user:docs", "skill:user:docx"]},
+    {"task": "click through the signup flow in chrome and screenshot it", "expect": ["skill:user:chrome-browser", "mcp_server:user:spectra"]},
+    {"task": "who calls this function and what breaks if I rename it", "expect": ["mcp_server:user:cortex"]},
+    {"task": "run several independent refactors in parallel", "expect": ["skill:superpowers@synced:dispatching-parallel-agents", "skill:superpowers@synced:subagent-driven-development"]},
+    {"task": "add a page to our team wiki", "expect": ["mcp_server:productivity@synced:notion", "mcp_server:productivity@synced:atlassian"]},
+    {"task": "build a budget table with formulas", "expect": ["skill:user:xlsx"]},
+    {"task": "work on a separate branch without touching my current checkout", "expect": ["skill:superpowers@synced:using-git-worktrees"]},
+    {"task": "investigate the market for second-hand bikes in Lyon", "expect": ["skill:user:deep-research"]},
+    {"task": "suggest hooks and automations for this repo", "expect": ["skill:claude-code-setup@synced:claude-automation-recommender"]}
+  ]
+}
