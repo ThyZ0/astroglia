@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
-## [Unreleased]
+## [0.13.0] - 2026-11-24
 ### Fixed
 - Stale entries are penalised after selection but the list was never re-sorted, so a stale note scored 0.31 could be listed above a skill scored 0.51. Results are now in score order (regression test reproduces it).
 - Routing never knew the current project: in the event log, all 17 real routings had no project, because Claude does not pass one, so the "belongs to this project" signal never applied. The `route` MCP tool now infers it from the session's folder (deepest known project containing it) and returns which project it used.
