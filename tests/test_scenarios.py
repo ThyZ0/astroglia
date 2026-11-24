@@ -1,6 +1,7 @@
 """The user-facing scenarios from the spec, end to end on a fake Claude Code install."""
 import io
 import json
+import pytest
 
 from astroglia import capabilities, experiences, hooks, router
 from astroglia.store import Store
@@ -91,6 +92,15 @@ def test_history_and_restore(env):
     assert s.delete(e["id"]) and s.get(e["id"]) is None
     s.restore(s.history(e["id"])[0]["history_id"])  # even a delete is reversible
     assert s.get(e["id"]) is not None
+
+
+def test_node_id_only_updates_existing_memory(env):
+    s = env["store"]
+    s.upsert({"id": "skill:user:x", "kind": "skill", "title": "x", "summary": "a skill", "source": "scan:claude-code"})
+    for bad in ("skill:user:x", "decision:doesnotexist"):  # never overwrite a capability, never invent an id
+        with pytest.raises(ValueError, match="not an existing memory entry"):
+            experiences.remember(s, "t", "s", kind="decision", node_id=bad)
+    assert s.get("skill:user:x")["summary"] == "a skill"
 
 
 def test_feedback_counts_for_similar_tasks_only(env):

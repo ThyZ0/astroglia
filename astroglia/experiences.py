@@ -92,6 +92,10 @@ def remember(store: Store, title: str, summary: str, body: str = "", kind: str =
     hit = find_secret("\n".join((title, summary, body)))
     if hit:
         raise ValueError(f"refused: content looks like it contains a secret (pattern {hit}). Remove it and retry.")
+    if node_id:  # updating: only an existing memory entry, never a scanned capability or project
+        cur = store.get(node_id)
+        if cur is None or cur["kind"] not in MEMORY_KINDS:
+            raise ValueError(f"node_id {node_id} is not an existing memory entry; omit node_id to create one")
     fp = fingerprint(list(files), store)
     missing = [f for f, h in fp.items() if h is None]
     if missing:

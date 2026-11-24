@@ -54,12 +54,13 @@ def build(cfg: config.Config | None = None) -> MCPServer:
     @mcp.tool(name="remember")
     async def tool_remember(title: str, summary: str, body: str = "", kind: str = "experience", project: str | None = None,
                        tags: list[str] | None = None, files: list[str] | None = None, related: list[str] | None = None,
-                       confidence: float = 0.7) -> dict:
+                       confidence: float = 0.7, node_id: str | None = None) -> dict:
         """Save a reusable experience/decision/knowledge. files = source files it depends on (used for staleness).
+        node_id = id of an existing memory entry to correct it in place (its history is kept) instead of adding a duplicate.
         Do not include secrets; they are refused."""
         try:
             return experiences.remember(store, title, summary, body, kind=kind, project=project, tags=tags or [],
-                                        files=files or [], related=related or [], confidence=confidence)
+                                        files=files or [], related=related or [], confidence=confidence, node_id=node_id)
         except ValueError as e:
             return {"error": str(e)}
 

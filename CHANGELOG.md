@@ -3,6 +3,9 @@
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
+### Fixed
+- The `remember` MCP tool now accepts `node_id`, so Claude can correct a memory entry in place. Astroglia's own hints told it to do so, but the parameter was missing and silently dropped: every correction became a duplicate. `node_id` must name an existing memory entry; a capability or an unknown id is refused.
+- The routing benchmark scored differently depending on what had been remembered since the labels were written (notes about routing itself outranked the expected skills). When the labels expect only capabilities, it now ranks capabilities only, and says so in its output. Re-measured: local 0.86, holdout 0.80, blind 0.73, blind2 0.73 hit@1. Plain BM25 on the same scope: 0.86, 0.80, 0.73, 0.67; the router is ahead on one set of four.
 ### Added
 - **First contact**: `astroglia` with no command shows what it is, whether it is connected to Claude Code, what it knows, and the next step (it used to print an argparse error). `astroglia install --yes` runs the first scan right away and reports what it found, so `astroglia ui` is not empty before the next session.
 - Human-readable output for `install`, `doctor`, `sync`, `status`, `value` and `route` (colours only on a terminal, `NO_COLOR` respected); `--json` keeps the machine form for scripts.
