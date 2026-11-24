@@ -257,6 +257,8 @@ views.galaxy = async () => {
   const view = { x: 0, y: 0, k: 1 };
   let hover = null, selected = null, highlight = null, focusSet = null, path = null, active = null, proj = [];
   const births = new Map(), flares = new Map(), pulses = [], ringsAt = [];
+  // a real event reaches a star: a travelling pulse, or just a fading highlight when the OS asks for reduced motion
+  const signal = (id, t0) => (reduceMotion ? flares.set(id, t0) : pulses.push({ id, t0 }));
   const now = () => performance.now();
   // Time travel: the plate as it was at `timeCut` (entries' real creation dates); null = now.
   const born = g.nodes.map((n) => Date.parse(n.created)).filter((x) => !isNaN(x));
@@ -581,10 +583,10 @@ views.galaxy = async () => {
         lastEvent = Math.max(lastEvent, e.id);
         ticker.textContent = `Live · ${new Date(e.ts).toLocaleTimeString()} · ${describe(e)}`;
         const t = now();
-        if (e.kind === "route") { ringsAt.push(t); (e.payload.selected || []).forEach((id, i) => pulses.push({ id, t0: t + i * 180 })); }
+        if (e.kind === "route") { ringsAt.push(t); (e.payload.selected || []).forEach((id, i) => signal(id, t + i * 180)); }
         else if (e.kind === "wake") ringsAt.push(t);
         else if (e.kind === "feedback") (e.payload.ids || []).forEach((id) => flares.set(id, t));
-        else if (e.kind === "served" && e.payload.id && g.byId.has(e.payload.id)) { ringsAt.push(t); pulses.push({ id: e.payload.id, t0: t }); }
+        else if (e.kind === "served" && e.payload.id && g.byId.has(e.payload.id)) { ringsAt.push(t); signal(e.payload.id, t); }
         if (e.kind.startsWith("memory.") || e.kind.startsWith("sync")) refresh = true;
       }
       if (refresh) {
@@ -600,7 +602,7 @@ views.galaxy = async () => {
   if (params().ids) {
     const ids = params().ids.split(",").filter((i) => g.byId.has(i));
     highlight = new Set(ids);
-    setTimeout(() => { const t = now(); ringsAt.push(t); ids.forEach((id, i) => pulses.push({ id, t0: t + i * 180 })); }, 400);
+    setTimeout(() => { const t = now(); ringsAt.push(t); ids.forEach((id, i) => signal(id, t + i * 180)); }, 400);
     ticker.textContent = `Replaying a routing: ${ids.length} resource(s) selected · ` + ids.map((i) => g.byId.get(i).title).join(", ");
   }
   addEventListener("resize", resize); resize();
