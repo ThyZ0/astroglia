@@ -96,6 +96,15 @@ def build(cfg: config.Config | None = None) -> MCPServer:
                 and (not kind or n["kind"] == kind) and (include_inactive or n["status"] == "active")]
         return {"count": len(rows), "items": [{"id": n["id"], "status": n["status"], "summary": n["summary"][:160]} for n in rows]}
 
+    @mcp.tool(name="changes")
+    async def tool_changes(id: str) -> dict:
+        """For a STALE entry: what changed in its source files since it was recorded (git commits and diff, capped).
+        Read this to decide quickly whether the entry still holds, then revalidate(id) or remember(..., node_id=id)."""
+        try:
+            return {"notice": NOTICE, "id": id, "files": experiences.changes_since(store, id)}
+        except KeyError:
+            return {"error": f"unknown id {id}"}
+
     @mcp.tool(name="health")
     async def tool_health() -> dict:
         """Memory hygiene: health score, overlapping entries (duplicates or contradictions to merge/fix),

@@ -8,7 +8,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 EXPECTED = {"route", "search", "get", "remember", "feedback", "revalidate",
-            "link", "capabilities", "status", "sync", "project"}
+            "link", "capabilities", "status", "sync", "project", "changes", "health"}
 
 
 def test_mcp_stdio_roundtrip(env):

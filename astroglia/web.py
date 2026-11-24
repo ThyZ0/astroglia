@@ -154,6 +154,8 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
             if n["fingerprint"]:
                 n["validity"] = experiences.verify(store, n["id"])
             return {"node": n, "edges": store.edges(n["id"]), "history": store.history(n["id"])[:30]}
+        if path == "/api/changes":
+            return experiences.changes_since(store, one("id", ""))
         if path == "/api/events":
             after = one("after")
             return store.events(int(one("limit", "100")), kind=one("kind"), after=int(after) if after else None)

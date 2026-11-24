@@ -328,6 +328,7 @@ async function showNode(panel, id, { editable = false } = {}) {
     h("div.row", {}, kindChip(n.kind), status(n.status)),
     h("h3", {}, n.title),
     h("p.muted.mono", {}, n.id),
+    v && v.status === "stale" ? changesBox(id) : null,
     v && v.status === "stale" ? h("div.error-box", {}, `Sources changed since this was recorded: ${v.changed.join(", ")}`,
       editable ? h("div", {}, h("button.btn.small", { type: "button", onclick: async () => {
         await api("/api/revalidate", { id }); toast("Marked as still valid with current files."); showNode(panel, id, { editable });
@@ -354,6 +355,22 @@ async function showNode(panel, id, { editable = false } = {}) {
       editable ? h("button.btn.ghost.small", { type: "button", onclick: async () => {
         await api("/api/restore", { history_id: x.history_id }); toast("Previous version restored (the current one is kept in history)."); showNode(panel, id, { editable });
       } }, "Restore") : null))) : h("p.muted.small", {}, "No previous versions."));
+}
+
+function changesBox(id) {
+  const box = h("details.changes", {}, h("summary", {}, "What changed since it was recorded"), h("div", {}, loading()));
+  box.addEventListener("toggle", async () => {
+    if (!box.open || box.dataset.loaded) return;
+    box.dataset.loaded = "1";
+    try {
+      const files = await api(`/api/changes?id=${encodeURIComponent(id)}`);
+      fill(box.lastChild, files.length ? files.map((f) => h("div.stack", {},
+        h("p.mono", {}, `${f.state === "deleted" ? "Deleted: " : ""}${f.file}`),
+        f.commits.length ? h("ul.small", {}, f.commits.map((c) => h("li", {}, c))) : h("p.small.muted", {}, "No commit since: uncommitted change, or not a git repository."),
+        f.diff ? h("pre.body-text.diff", {}, f.diff) : null)) : [h("p.small.muted", {}, "Files match again: re-check to clear the warning.")]);
+    } catch (e) { fill(box.lastChild, errorBox(e)); }
+  });
+  return box;
 }
 
 function editor(n, panel) {

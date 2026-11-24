@@ -164,6 +164,43 @@ def revalidate(store: Store, node_id: str) -> dict:
     return {"status": "active"}
 
 
+MAX_DIFF_LINES = 120
+
+
+def changes_since(store: Store, node_id: str) -> list[dict]:
+    """For a stale entry: what changed in each of its source files since it was last verified, from git
+    (commits since that date + uncommitted changes). Files outside git get only 'changed'/'deleted'."""
+    import subprocess
+    n = store.get(node_id)
+    if n is None:
+        raise KeyError(node_id)
+    out = []
+    for f, h in (n["fingerprint"] or {}).items():
+        p = Path(f)
+        if cached_sha256(store, p) == h:
+            continue
+        item = {"file": f, "state": "deleted" if not p.exists() else "changed", "commits": [], "diff": None}
+        if p.parent.exists():
+            def git(*args):
+                try:
+                    r = subprocess.run(["git", "-C", str(p.parent), *args], capture_output=True, text=True,
+                                       encoding="utf-8", errors="replace", timeout=10)
+                    return r.stdout if r.returncode == 0 else ""
+                except (OSError, subprocess.SubprocessError):
+                    return ""
+            log = git("log", f"--since={n['verified']}", "--pretty=format:%h %cs %s", "--", p.name)
+            item["commits"] = [l for l in log.splitlines() if l][:10]
+            # patches of each commit since the entry was verified, then what is not committed yet
+            diff = git("log", "-p", f"--since={n['verified']}", "--pretty=format:### %h %s", "--", p.name)
+            diff += ("\n" if diff else "") + git("diff", "HEAD", "--", p.name)
+            diff = diff.strip()
+            if diff:
+                lines = diff.splitlines()
+                item["diff"] = "\n".join(lines[:MAX_DIFF_LINES]) + (f"\n... {len(lines) - MAX_DIFF_LINES} more lines" if len(lines) > MAX_DIFF_LINES else "")
+        out.append(item)
+    return out
+
+
 def verify_all(store: Store) -> dict:
     out = {"checked": 0, "stale": []}
     ids = [r["id"] for r in store.db.execute("SELECT id FROM nodes WHERE fingerprint IS NOT NULL AND status IN ('active','stale')")]
