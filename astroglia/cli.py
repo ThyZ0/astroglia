@@ -130,6 +130,13 @@ def cmd_doctor(cfg, a):
         check(f"{tool} on PATH (optional)", shutil.which(tool), shutil.which(tool) or "not found")
     errlog = cfg.home / "hook-errors.log"
     check("no hook errors", not errlog.exists(), str(errlog) if errlog.exists() else "")
+    if cfg.db_path.exists():
+        s = Store(cfg.db_path)
+        unprobed = [n["title"] for n in s.nodes(kind="mcp_server", status="active") if n["title"] != "astroglia"
+                    and n["meta"].get("transport", "stdio") == "stdio" and not n["meta"].get("probe")]
+        s.close()
+        check("local MCP servers probed (optional)", not unprobed,
+              f"run `astroglia probe` so routing knows what {', '.join(unprobed)} can do" if unprobed else "")
     _out(checks)
     return 0 if all(c["ok"] for c in checks if "optional" not in c["check"] and "installed" not in c["check"]
                     and "registered" not in c["check"]) else 1
