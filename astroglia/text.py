@@ -72,3 +72,17 @@ def fts_query(s: str) -> str:
 def est_tokens(s: str) -> int:
     """Rough token estimate (~4 chars/token). Always labelled an estimate in outputs."""
     return max(1, len(s) // 4)
+
+
+# Sentences that say when NOT to use a capability ("Not for websites, which go through Chrome") name other
+# tools' jobs: indexed as-is, they made computer-use win website tasks. Capabilities are indexed without them.
+_NEGATIVE = re.compile(r"\b(not for|not when|do not use|don't use|never use|however, if|pas pour|ne pas utiliser|ne sert pas)\b", re.I)
+_SENTENCE = re.compile(r"(?<=[.!?;])\s+")
+
+
+def positive(text: str | None) -> str:
+    """`text` without its negative-scope sentences; unchanged if nothing would be left."""
+    if not text:
+        return text or ""
+    kept = " ".join(s for s in _SENTENCE.split(text) if not _NEGATIVE.search(s))
+    return kept or text

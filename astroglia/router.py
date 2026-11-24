@@ -12,8 +12,8 @@ from datetime import datetime, timezone
 
 from .config import Config
 from .experiences import verify
-from .store import Store
-from .text import est_tokens, fold, fts_query, terms
+from .store import CAP_KINDS, Store
+from .text import est_tokens, fold, fts_query, positive, terms
 
 SKIP_STATUS = ("missing", "disabled", "archived")
 # Plugins are containers of skills (routing them duplicates their skills); hooks run on their own.
@@ -55,7 +55,9 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
             continue
         # Relative BM25 rank alone always gives the top hit 1.0; blend with absolute term coverage.
         # (IDF-weighted coverage was tried: hit@1 fell 0.82 -> 0.73 on bench/local-tasks.json.)
-        nterms = set(terms(" ".join(filter(None, (n["title"], n["summary"], n["tags"], n["body"])))))
+        cap = n["kind"] in CAP_KINDS  # same text as the index: capabilities without their "not for ..." sentences
+        nterms = set(terms(" ".join(filter(None, (n["title"], positive(n["summary"]) if cap else n["summary"], n["tags"],
+                                                    positive(n["body"]) if cap else n["body"])))))
         covered = sum(1 for t in qterms if any(x.startswith(t[:5]) for x in nterms)) / max(1, len(qterms))
         rel = 0.5 * (s / best if best < 0 else 0.0) + 0.5 * covered
         # The task names this resource ("use graphify", "quiz me") -> strongest signal we have.

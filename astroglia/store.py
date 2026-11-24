@@ -11,7 +11,11 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .text import positive
+
 SCHEMA_VERSION = 2
+INDEX_VERSION = "2"  # bump when what goes into nodes_fts changes: the index is rebuilt on open
+CAP_KINDS = ("plugin", "skill", "command", "agent", "mcp_server", "hook")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes(
@@ -95,6 +99,11 @@ class Store:
             self.db.executescript("CREATE TABLE IF NOT EXISTS file_cache(path TEXT PRIMARY KEY, size INTEGER NOT NULL, "
                                   "mtime_ns INTEGER NOT NULL, sha256 TEXT NOT NULL)")
         self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+        r = self.db.execute("SELECT value FROM kv WHERE key='index_version'").fetchone()
+        if not r or r["value"] != INDEX_VERSION:  # rebuild the search index in place; no schema change, older versions still open the db
+            for (nid,) in self.db.execute("SELECT id FROM nodes").fetchall():
+                self._index(nid)
+            self.db.execute("INSERT INTO kv(key,value) VALUES('index_version',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (INDEX_VERSION,))
         self._commit()
 
     def _commit(self) -> None:
@@ -191,10 +200,12 @@ class Store:
         return self.upsert(snap, op=f"restore:{history_id}")
 
     def _index(self, node_id: str) -> None:
-        r = self.db.execute("SELECT title, summary, tags, body FROM nodes WHERE id=?", (node_id,)).fetchone()
+        r = self.db.execute("SELECT kind, title, summary, tags, body FROM nodes WHERE id=?", (node_id,)).fetchone()
+        cap = r["kind"] in CAP_KINDS  # capabilities: drop "not for ..." sentences (see text.positive)
         self.db.execute("DELETE FROM nodes_fts WHERE id=?", (node_id,))
         self.db.execute("INSERT INTO nodes_fts(id, title, summary, tags, body) VALUES(?,?,?,?,?)",
-                        (node_id, r["title"], r["summary"], r["tags"], r["body"] or ""))
+                        (node_id, r["title"], positive(r["summary"]) if cap else r["summary"], r["tags"],
+                         (positive(r["body"]) if cap else r["body"]) or ""))
 
     def nodes(self, kind: str | None = None, status: str | None = None) -> list[dict]:
         q, args = "SELECT * FROM nodes WHERE 1=1", []

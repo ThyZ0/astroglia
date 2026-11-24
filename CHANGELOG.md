@@ -3,6 +3,8 @@
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
+### Fixed
+- Sentences that say when *not* to use a capability ("It is not for websites, which go through Chrome") are no longer indexed: their words name other tools' jobs, so computer-use was proposed for website tasks and study-plan for "what do I have to do this week". Memory entries keep every word. The search index is rebuilt once on open (no schema change: older versions still open the database). Measured: blind hit@3 0.80 -> 0.87, other sets unchanged; no set got worse. Most remaining misses share no word with the right tool ("am I free on thursday" vs a calendar): keyword matching cannot fix those.
 ### Changed
 - **The Atlas has no outlines any more and organises itself.** The brain plate (outline, lobes, grid, frame, region titles) is gone; entries are placed by a force simulation over their real relations, so constellations form on their own. Measured: 20 ms to settle 112 entries, 4.5 s for 20,000 entries and 40,000 relations (spread over frames; redrawn at most 4 times a second while settling above 3,000 entries); panning the settled 20k map at about 50 frames/s (headless, software rendering), down from about 80 with the fixed plate.
 - Selecting a star zooms in until its relations are readable and centres them beside the detail panel (never zooms out).

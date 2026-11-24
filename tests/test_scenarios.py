@@ -236,3 +236,15 @@ def test_stale_entries_drop_below_fresher_ones(env, tmp_path):
     sel = router.route(s, env["cfg"], "sqlite database locking", log=False)["selected"]
     scores = [x["score"] for x in sel]
     assert scores == sorted(scores, reverse=True) and any(x["id"] == stale["id"] and x["warnings"] for x in sel)
+
+
+def test_not_for_sentences_do_not_attract_tasks(env):
+    from astroglia.text import positive
+    desc = "Control the desktop with clicks and screenshots. It is not for websites, which go through Chrome."
+    assert positive(desc) == "Control the desktop with clicks and screenshots."
+    assert positive("Not for anything.") == "Not for anything."  # never index an empty description
+    s = env["store"]
+    s.upsert({"id": "skill:user:desktop", "kind": "skill", "title": "desktop", "summary": desc, "source": "scan:claude-code"})
+    assert not any(i == "skill:user:desktop" for i, _ in s.fts('"websites"'))
+    experiences.remember(s, "lesson", "Not for websites: use the browser tool")  # memory keeps every word
+    assert any(i.startswith("experience:") for i, _ in s.fts('"websites"'))
