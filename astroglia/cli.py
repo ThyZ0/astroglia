@@ -13,6 +13,7 @@ from . import __version__, capabilities, config, experiences, providers, router
 from .store import Store
 
 HOOK_MARK = "-m astroglia hook"
+FILE_TOOLS = "Read|Edit|Write|MultiEdit|NotebookEdit"  # anchored memory: knowledge served at the file it is about
 
 
 def _out(obj) -> None:
@@ -29,12 +30,16 @@ def _settings_plan(cfg: config.Config, with_prompt_hook: bool) -> tuple[Path, di
     cur = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     new = json.loads(json.dumps(cur))
     hooks = new.setdefault("hooks", {})
-    wanted = {"SessionStart": ("session-start", 15), "Stop": ("stop", 10)}
+    wanted = {"SessionStart": ("session-start", 15, None), "Stop": ("stop", 10, None),
+              "PostToolUse": ("post-tool", 5, FILE_TOOLS)}
     if with_prompt_hook:
-        wanted["UserPromptSubmit"] = ("prompt", 5)
-    for event, (arg, timeout) in wanted.items():
+        wanted["UserPromptSubmit"] = ("prompt", 5, None)
+    for event, (arg, timeout, matcher) in wanted.items():
         groups = [g for g in hooks.get(event, []) if not any(HOOK_MARK in h.get("command", "") for h in g.get("hooks", []))]
-        groups.append({"hooks": [{"type": "command", "command": _hook_cmd(arg), "timeout": timeout}]})
+        group = {"hooks": [{"type": "command", "command": _hook_cmd(arg), "timeout": timeout}]}
+        if matcher:
+            group = {"matcher": matcher, **group}
+        groups.append(group)
         hooks[event] = groups
     return path, cur, new
 
@@ -160,7 +165,7 @@ def main(argv=None) -> int:
     ui = sub.add_parser("ui", help="open the local web interface"); ui.add_argument("--port", type=int, default=8765)
     ui.add_argument("--no-browser", action="store_true")
     sub.add_parser("mcp", help="run the MCP server (stdio)")
-    h = sub.add_parser("hook", help="Claude Code hook entry point"); h.add_argument("event", choices=["session-start", "prompt", "stop"])
+    h = sub.add_parser("hook", help="Claude Code hook entry point"); h.add_argument("event", choices=["session-start", "prompt", "stop", "post-tool"])
     i = sub.add_parser("install", help="register hooks + MCP in Claude Code"); i.add_argument("--yes", action="store_true")
     i.add_argument("--prompt-hook", action="store_true", help="also route every prompt (opt-in, costs context)")
     u = sub.add_parser("uninstall"); u.add_argument("--purge", action="store_true", help="also delete all Astroglia data"); u.add_argument("--yes", action="store_true")
@@ -171,6 +176,9 @@ def main(argv=None) -> int:
         _out(f"error: cannot read Astroglia config.toml: {e}"); return 1
 
     if a.cmd == "hook":
+        if a.event == "post-tool":
+            from . import anchors
+            return anchors.run()
         from . import hooks
         return hooks.run(a.event)
     if a.cmd == "ui":

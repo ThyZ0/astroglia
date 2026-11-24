@@ -2,6 +2,13 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [0.8.0] - 2026-11-24
+### Added
+- **Anchored memory**: a PostToolUse hook on Read/Edit/Write/MultiEdit/NotebookEdit. After Claude reads a file, it receives what Astroglia remembers about that file (once per file per session), flagged STALE when the file changed since recorded. After an edit, it is told which decisions and experiences depend on that file and how to revalidate or update them (once per entry per session). Only entries written by Claude or the user are served. Measured: ~100 ms per call end to end, of which 64 ms is Python start-up; lookup 24 ms on 20,500 entries.
+- `astroglia value` counts anchored entries served.
+### Verified
+- CI green on Linux, macOS and Windows with Python 3.11, 3.12 and 3.13.
+
 ## [0.7.0] - 2026-11-23
 First public release.
 ### Added

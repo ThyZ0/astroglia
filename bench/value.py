@@ -49,8 +49,15 @@ def recall(store: Store, cfg) -> dict:
         sel = router.route(store, cfg, q, log=False)["selected"]
         route_hits += bool(sel) and sel[0]["title"] == want
     stale = [n["title"] for n in mem if n["status"] == "stale"]
+    from astroglia import anchors
+    anchored = 0
+    for n in mem:  # served by merely reading one of the entry's files: no query, no tool call by Claude
+        f = next(iter(n["fingerprint"] or {}), None)
+        out = f and anchors.respond({"tool_name": "Read", "tool_input": {"file_path": f}, "session_id": "bench-" + n["id"]}, cfg.db_path)
+        anchored += bool(out) and n["id"] in out
     return {"questions": len(RECALL), "notes_file_found": grep_hits, "astroglia_found_first": route_hits,
-            "stale_entries": len(stale), "notes_file_can_flag_stale": 0, "astroglia_flags_stale": len(stale)}
+            "stale_entries": len(stale), "notes_file_can_flag_stale": 0, "astroglia_flags_stale": len(stale),
+            "served_on_file_read_without_query": f"{anchored}/{len(mem)}"}
 
 
 def main(base: Path) -> None:

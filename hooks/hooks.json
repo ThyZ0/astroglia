@@ -1,7 +1,39 @@
 {
-  "description": "Astroglia: session manifest at start, one consolidation reminder at the end of real work. Both fail open.",
+  "description": "Astroglia: session manifest at start; remembered knowledge served when Claude reads or edits the file it is about; one consolidation reminder at the end of real work. All fail open.",
   "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "astroglia hook session-start", "timeout": 15 }] }],
-    "Stop": [{ "hooks": [{ "type": "command", "command": "astroglia hook stop", "timeout": 10 }] }]
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "astroglia hook session-start",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "astroglia hook stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "astroglia hook post-tool",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }

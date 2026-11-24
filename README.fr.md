@@ -18,6 +18,7 @@ Astroglia lui dit quelles ressources conviennent à la tâche, ce qu'il a déjà
 | relit `package.json`, le README et l'arborescence pour se rappeler ce qu'est un projet | reçoit une **fiche projet** dans le manifeste de démarrage (stack, commandes, points d'entrée, tests, fichiers les plus modifiés), construite depuis ces fichiers et reconstruite seulement quand ils changent |
 | voit plus de 40 descriptions de skills et choisit au jugé ; des skills redondants sont chargés deux fois | appelle **`route(tâche)`** : une courte liste classée, avec la raison de chaque choix et de chaque rejet, sans doublons |
 | oublie la correction trouvée hier, ou pire, se fie à une note sur du code qui a changé depuis | **`remember`** lie chaque note à l'empreinte de ses fichiers ; quand ils changent, la note est servie marquée **périmée** |
+| ouvre `cache.py` sans savoir qu'une décision passée explique pourquoi le TTL vaut 600 | **mémoire ancrée** : ce qu'Astroglia sait d'un fichier arrive *quand Claude lit ce fichier*, sans aucune requête, marqué périmé si le fichier a changé ; le modifier liste les décisions qui risquent de ne plus tenir |
 | termine une longue session et la connaissance est perdue | un **hook de fin de session** demande une seule fois, seulement après un vrai travail, s'il y a quelque chose à garder |
 
 Les astrocytes sont les cellules du cerveau en forme d'étoile qui soutiennent les neurones sans penser à leur place. Astroglia ne pense pas pour Claude : il organise ce que Claude possède déjà.

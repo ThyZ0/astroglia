@@ -1,6 +1,6 @@
 {
   "name": "astroglia",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Tells Claude which skills and tools fit the task, what it already learned, and whether that is still true. Project briefs at session start, verified memory, explained routing. Local, no LLM calls. Requires the astroglia command: pipx install git+https://github.com/ThyZ0/astroglia",
   "author": { "name": "ThyZ0", "url": "https://github.com/ThyZ0" },
   "homepage": "https://github.com/ThyZ0/astroglia",

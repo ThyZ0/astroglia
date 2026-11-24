@@ -18,6 +18,7 @@ Astroglia tells it which resources fit the task, what it already learned, and wh
 | re-reads `package.json`, the README and the folder tree to remember what a project is | gets a **project brief** in the session manifest (stack, commands, entry points, tests, hot files), built from those files and rebuilt only when they change |
 | sees 40+ skill descriptions and picks by guesswork; overlapping skills get loaded twice | calls **`route(task)`**: a short ranked list with the reason for every pick and every rejection, overlaps removed |
 | forgets the fix it found yesterday, or worse, trusts a note about code that has since changed | **`remember`** ties each note to the hashes of its files; when they change, the note is served flagged **stale** |
+| opens `cache.py` with no idea that a past decision explains why the TTL is 600 | **anchored memory**: what Astroglia remembers about a file arrives *when Claude reads that file*, without any query, flagged stale if the file changed; editing it lists the decisions that may no longer hold |
 | ends a long session and the knowledge is gone | a **Stop hook** asks once, only after real work, whether something is worth keeping |
 
 Astroglia is named after the star-shaped brain cells that support neurons without doing the thinking. It does not think for Claude: it organises what Claude already has.
@@ -30,7 +31,7 @@ Astroglia complements the tools around it instead of replacing them.
 |---|---|---|
 | **Cortex**, **Graphify** | your code (symbols, call graphs, knowledge graphs) | Astroglia points to their indexes in each project card and flags a Graphify graph built from an older commit than `HEAD`. It never re-indexes code. |
 | **claude-mem**, Supermemory, Cognee | everything Claude does, automatically, with vector search | Different bet: Astroglia stores **few, verified** entries tied to files, and knows when they are wrong. |
-| `CLAUDE.md` / auto-memory | free-form notes | Indexed as pointers, so `route` can find them. |
+| `CLAUDE.md` / auto-memory | free-form notes, loaded whole at session start | Indexed as pointers, so `route` can find them. Astroglia's own memory is served per file, only when that file is touched. |
 | *(nothing)* | your installed **skills, plugins, MCP servers, agents, hooks** | Astroglia's capability registry: discovery, overlaps, explained routing. |
 
 ## Quick start
@@ -88,6 +89,7 @@ Also: **Neural view** (walk the graph entry by entry), **Clusters** (a plugin or
 ```
 Claude Code ──SessionStart hook──► sync (incremental) ─► manifest: capabilities, changes, current project + brief
             ──MCP──► route · project · get · remember · feedback · revalidate · link · search · status · sync
+            ──PostToolUse (Read/Edit/Write)──► memory anchored to that file, once per session (~35 ms)
             ──Stop hook──► once per session: "save what is reusable?"
                          │
                  SQLite (FTS5) in ~/.astroglia: entries, typed relations, versions, event log
