@@ -156,9 +156,11 @@ def _transcript(tmp, tools):
 
 
 def test_consolidation_asks_once_after_real_work(env):
-    t = _transcript(env["tmp"], [("Edit", {"file_path": "a.py"}), ("Write", {"file_path": "b.py"}), ("Read", {"file_path": "c.py"})])
+    a = write(env["tmp"] / "a.py", "x\n")
+    t = _transcript(env["tmp"], [("Edit", {"file_path": str(a)}), ("Write", {"file_path": "gone.py"}), ("Read", {"file_path": "c.py"})])
     out = hooks.stop({"transcript_path": t, "session_id": "s1"}, env["cfg"])
     assert out["decision"] == "block" and "edited 2 files" in out["reason"] and "remember" in out["reason"]
+    assert f"- {a}" in out["reason"] and "- (+1 more)" in out["reason"]  # full paths, deleted files left out
     assert hooks.stop({"transcript_path": t, "session_id": "s1"}, env["cfg"]) is None          # once per session
     assert hooks.stop({"transcript_path": t, "session_id": "s2", "stop_hook_active": True}, env["cfg"]) is None  # no loop
 

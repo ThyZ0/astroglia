@@ -143,12 +143,15 @@ def stop(payload: dict, cfg: config.Config | None = None) -> dict | None:
         store.log("consolidate.asked", files=len(files))
     finally:
         store.close()
-    shown = ", ".join(Path(f).name for f in files[:6]) + (f" (+{len(files) - 6})" if len(files) > 6 else "")
+    # full paths of files that still exist, ready to pass as `files=` (no need to look them up again)
+    existing = [f for f in files if Path(f).is_file()][:12]
+    listed = "\n".join(f"- {f}" for f in existing) + (f"\n- (+{len(files) - len(existing)} more)" if len(files) > len(existing) else "")
     return {"decision": "block", "reason":
-            f"[Astroglia] This session edited {len(files)} files ({shown}) and saved nothing to memory. "
+            f"[Astroglia] This session edited {len(files)} files and saved nothing to memory. "
             "If it produced something a future session should not have to rediscover (a fix and its cause, a decision "
             "and why, how a module works), save it now with the astroglia `remember` tool, passing the files it depends "
-            "on so it can be flagged stale later. If nothing is worth keeping, simply finish. This reminder appears once."}
+            "on so it can be flagged stale later. Files edited this session:\n" + listed +
+            "\nIf nothing is worth keeping, simply finish. This reminder appears once."}
 
 
 def run(event: str) -> int:
