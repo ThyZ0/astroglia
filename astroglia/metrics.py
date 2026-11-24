@@ -19,7 +19,7 @@ def value(store: Store, days: int | None = None) -> dict:
         args = ((datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds"),)
     m = dict.fromkeys(("routings", "routings_with_results", "memory_served", "briefs_served", "anchored_served", "dejavu_served", "recurring_flagged", "stale_warnings",
                        "project_cards_served", "entries_fetched", "memories_saved", "duplicates_flagged",
-                       "consolidations_asked", "feedback_useful", "feedback_not_useful", "sessions"), 0)
+                       "consolidations_asked", "feedback_useful", "feedback_not_useful", "uses_learned", "sessions"), 0)
     brief_bytes = 0
     for kind, raw in store.db.execute(q, args).fetchall():
         p = json.loads(raw)
@@ -57,7 +57,8 @@ def value(store: Store, days: int | None = None) -> dict:
         elif kind == "consolidate.asked":
             m["consolidations_asked"] += 1
         elif kind == "feedback":
-            m["feedback_useful" if p.get("useful") else "feedback_not_useful"] += len(p.get("ids", []))
+            key = "uses_learned" if p.get("implicit") else "feedback_useful" if p.get("useful") else "feedback_not_useful"
+            m[key] += len(p.get("ids", []))
         elif kind == "wake":
             m["sessions"] += 1
     return {"period_days": days, "measured": m,

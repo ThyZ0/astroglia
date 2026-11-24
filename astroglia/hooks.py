@@ -163,6 +163,65 @@ def session_activity(transcript: str | Path, errors: list | None = None,
     return files, remembered
 
 
+def capability_uses(transcript: str | Path) -> list[tuple[str, str, str]]:
+    """(request, kind, name) for each skill or MCP server Claude actually used, paired with the user's latest
+    typed request. Read from the transcript at turn end: no hook runs on the tools' own calls, so Spectra,
+    Cortex and every other server are never slowed down. Astroglia's own tools are skipped."""
+    out, prompt = [], None
+    with open(transcript, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if '"tool_use"' not in line and '"type":"user"' not in line.replace(" ", ""):
+                continue
+            try:
+                msg = json.loads(line).get("message") or {}
+            except ValueError:
+                continue
+            c = msg.get("content")
+            if msg.get("role") == "user" and isinstance(c, str) and c.strip() and not c.lstrip().startswith("<"):
+                prompt = " ".join(c.split())[:300]
+                continue
+            for part in c if isinstance(c, list) and prompt else []:
+                if not isinstance(part, dict) or part.get("type") != "tool_use":
+                    continue
+                name = part.get("name", "")
+                if name == "Skill" and (part.get("input") or {}).get("skill"):
+                    out.append((prompt, "skill", str(part["input"]["skill"])))
+                elif name.startswith("mcp__") and name.count("__") >= 2:
+                    server = name.split("__")[1]
+                    if server != "astroglia":
+                        out.append((prompt, "mcp_server", server))
+    return list(dict.fromkeys(out))  # one record per (request, capability)
+
+
+def resolve_capability(store: Store, kind: str, name: str) -> str | None:
+    """Store id of a used skill ("plugin:skill" or "skill") or MCP server, or None if unknown."""
+    plugin, _, short = name.rpartition(":")
+    rows = store.db.execute("SELECT id FROM nodes WHERE kind=? AND title=? AND status NOT IN ('missing','disabled','archived')",
+                            (kind, short)).fetchall()
+    ids = [r["id"] for r in rows]
+    if plugin:
+        ids = [i for i in ids if i.startswith(f"{kind}:{plugin}@")] or ids
+    return ids[0] if len(ids) == 1 or (ids and plugin) else None
+
+
+def learn_uses(store: Store, transcript: str | Path, session_id: str) -> int:
+    """Each skill or MCP server Claude really used counts as useful for the request it served, so routing ranks it
+    higher for similar requests (router.contextual_success). Only uses not seen at a previous turn end are recorded."""
+    uses = capability_uses(transcript)
+    key = f"learned:{session_id}"
+    done = int(store.kv_get(key) or 0)
+    n = 0
+    for prompt, kind, name in uses[done:]:
+        nid = resolve_capability(store, kind, name)
+        if nid:
+            store.bump(nid, uses=1, successes=1)
+            store.log("feedback", ids=[nid], useful=True, task=prompt, implicit=True)
+            n += 1
+    if len(uses) > done:
+        store.kv_set(key, str(len(uses)))
+    return n
+
+
 HANDOFF_DAYS = 14
 
 
@@ -217,6 +276,7 @@ def stop(payload: dict, cfg: config.Config | None = None) -> dict | None:
     store = Store(cfg.db_path)
     try:
         write_handoff(store, payload.get("cwd"), payload.get("session_id", ""), prompts, files, errors)
+        learn_uses(store, payload["transcript_path"], payload.get("session_id", ""))
     finally:
         store.close()
     if not cfg.consolidate or remembered or len(files) < cfg.consolidate_min_files:

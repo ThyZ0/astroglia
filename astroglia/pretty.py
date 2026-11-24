@@ -97,7 +97,8 @@ def value(v: dict) -> str:
             ("déjà vu on errors", m["dejavu_served"]), ("recurring errors flagged", m.get("recurring_flagged", 0)),
             ("memory entries served by routing", m["memory_served"]), ("stale warnings", m["stale_warnings"]),
             ("routings with results", f"{m['routings_with_results']}/{m['routings']}"), ("memories saved", m["memories_saved"]),
-            ("duplicates flagged", m["duplicates_flagged"]), ("sessions started", m["sessions"])]
+            ("duplicates flagged", m["duplicates_flagged"]), ("tool uses learned from", m.get("uses_learned", 0)),
+            ("sessions started", m["sessions"])]
     head = c("What Astroglia did" + (f", last {v['period_days']} days" if v.get("period_days") else ""), BOLD) + c("  (measured: counted from the event log)", DIM)
     est = v["estimated"]
     return "\n".join([head] + [f"  {str(val):>7}  {label}" for label, val in rows] +
