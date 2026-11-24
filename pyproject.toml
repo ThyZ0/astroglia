@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "astroglia"
-version = "0.10.0"
+version = "0.11.0"
 description = "Tells Claude Code which skills and tools fit the task, what it already learned, and whether that is still true"
 keywords = ["claude-code", "mcp", "agents", "memory", "context", "llm-tools"]
 authors = [{ name = "Astroglia contributors" }]

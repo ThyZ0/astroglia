@@ -2,11 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
-## [Unreleased]
+## [0.11.0] - 2026-11-24
 ### Added
 - **What changed** for a stale entry: the git commits and patches that touched its source files since it was verified, plus uncommitted changes (capped). In the node panel ("What changed since it was recorded") and as the MCP tool `changes(id)`, so Claude can revalidate or update in seconds instead of re-analysing.
 ### Verified
-- First real-session firing: the anchored-memory hook warned, during an actual Edit in Claude Code, that a remembered experience depends on the edited file; no hook errors.
+- First real-session firings: the anchored-memory hook warned, during an actual Edit in Claude Code, that a remembered experience depends on the edited file; déjà vu fired on a real failed command (`SyntaxError: unterminated string literal`) and served the remembered fix with the matched terms. No hook errors.
 - Projects page: where the last session stopped (handoff note) and the full project brief Claude receives.
 - Memory page: "+ New entry" form to write a decision or experience yourself, tied to its files (`POST /api/remember`, secrets refused, similar entries reported).
 - Quick search (Ctrl+K or /) to jump to any skill, tool, memory or project from any page.
