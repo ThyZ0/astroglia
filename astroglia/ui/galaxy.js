@@ -212,7 +212,7 @@ views.galaxy = async () => {
   const canvas = h("canvas.galaxy.atlas", { role: "img", tabindex: 0, "aria-label":
     `Atlas of ${g.nodes.length} entries and ${g.edges.length} relations, drawn as a brain. Arrow keys pan, plus and minus zoom. ` +
     "The same entries are listed as text in Capabilities, Memory, Projects and Health." });
-  const search = h("input", { type: "search", placeholder: "Find a star", "aria-label": "Highlight entries by name" });
+  const search = h("input", { type: "search", placeholder: "Find a star, or describe a task ↵", "aria-label": "Highlight entries by name, or type a task and press Enter to see what Claude would be given" });
   const voidSel = h("select", { "aria-label": "Highlight weak zones" }, h("option", { value: "" }, "Weak zones: off"));
   const fitBtn = h("button.btn.ghost.small", { type: "button", title: "Show the whole plate" }, "Fit");
   const timeSlider = h("input.time-slider", { type: "range", min: 0, max: 1000, value: 1000, "aria-label": "Show the atlas as it was on a date" });
@@ -255,6 +255,7 @@ views.galaxy = async () => {
   let ctx = screenCtx;  // points at the cached layer while it is being rendered
   let L = atlasLayout(g.nodes), W = 0, H = 0, dpr = 1;
   const view = { x: 0, y: 0, k: 1 };
+  let ranked = null;  // id -> rank when previewing a routing
   let hover = null, selected = null, highlight = null, focusSet = null, path = null, active = null, proj = [];
   const births = new Map(), flares = new Map(), pulses = [], ringsAt = [];
   // a real event reaches a star: a travelling pulse, or just a fading highlight when the OS asks for reduced motion
@@ -460,15 +461,17 @@ views.galaxy = async () => {
     const bigHubs = new Set([...L.groups.values()].filter((m) => m.length > 0).sort((a, b) => b.length - a.length)
       .slice(0, Math.round(24 * Math.max(1, zoom))).map((m) => (m.find((x) => x.kind === "plugin" || x.kind === "project") || {}).id).filter(Boolean));
     const named = proj.filter(([n]) => (focus && n.id === focus.id) || (path && path.nodes.has(n.id)) || (selected && focusSet.has(n.id))
-      || (!active && ((bigHubs.has(n.id)) || zoom > 1.9)) || (highlight && highlight.has(n.id) && zoom > 1.2));
-    named.sort(([a], [b]) => (focus && b.id === focus.id) - (focus && a.id === focus.id) || (b.kind === "project" || b.kind === "plugin") - (a.kind === "project" || a.kind === "plugin"));
+      || (!active && ((bigHubs.has(n.id)) || zoom > 1.9)) || (highlight && highlight.has(n.id) && zoom > 1.2) || (ranked && ranked.has(n.id)));
+    named.sort(([a], [b]) => (ranked ? (ranked.has(b.id) - ranked.has(a.id)) : 0) || (focus && b.id === focus.id) - (focus && a.id === focus.id) || (b.kind === "project" || b.kind === "plugin") - (a.kind === "project" || a.kind === "plugin"));
     for (const [n, p] of named) {
       const hub = n.kind === "plugin" || n.kind === "project";
       ctx.font = hub ? "italic 12px Georgia, 'Times New Roman', serif" : "11px 'Segoe UI', system-ui, sans-serif";
-      const text = n.title.length > 30 ? n.title.slice(0, 29) + "…" : n.title, w = ctx.measureText(text).width, y = p[1] - (hub ? 12 : 8);
-      const box = [p[0] - w / 2 - 3, y - 11, p[0] + w / 2 + 3, y + 3];
+      const short = n.title.length > 30 ? n.title.slice(0, 29) + "…" : n.title, rk = ranked && ranked.get(n.id);
+      const text = rk ? `${rk} · ${short}` : short, w = ctx.measureText(text).width;
+      let y = p[1] - (hub ? 12 : 8), box = [p[0] - w / 2 - 3, y - 11, p[0] + w / 2 + 3, y + 3];
+      if (overlaps(box) && rk) { y = p[1] + 18; box = [p[0] - w / 2 - 3, y - 11, p[0] + w / 2 + 3, y + 3]; }  // a ranked star keeps its name: try below
       if (overlaps(box)) continue; boxes.push(box);
-      ctx.fillStyle = focus && n.id === focus.id ? "#f3ead2" : hub ? INK + "0.85)" : INK + "0.7)";
+      ctx.fillStyle = rk ? GOLD : focus && n.id === focus.id ? "#f3ead2" : hub ? INK + "0.85)" : INK + "0.7)";
       ctx.fillText(text, p[0], y);
     }
     // pulses: from the brainstem to what was actually served
@@ -526,14 +529,32 @@ views.galaxy = async () => {
     else if (e.key === "-") { zoomAt(W / 2, H / 2, 1 / 1.2); e.preventDefault(); }
   });
   fitBtn.addEventListener("click", () => { fit(); invalidate(); });
+  // Enter with a task: preview what the router would hand Claude (not logged, so it does not count as served)
+  search.addEventListener("keydown", async (e) => {
+    const task = search.value.trim();
+    if (e.key !== "Enter" || task.split(/\s+/).length < 2) return;
+    e.preventDefault();
+    try {
+      const r = await api("/api/route", { task, preview: true });
+      ranked = new Map(r.selected.map((x, i) => [x.id, i + 1]));
+      highlight = new Set(ranked.keys()); voidSel.value = "";
+      const t = now(); r.selected.forEach((x, i) => signal(x.id, t + i * 180));
+      ticker.textContent = r.selected.length
+        ? `For “${task}”, Claude would be given: ` + r.selected.map((x, i) => `${i + 1}. ${x.title} (${x.kind.replace("_", " ")}, ${x.score.toFixed(2)})`).join(" · ")
+          + (r.rejected.length ? ` — ${r.rejected.length} candidates rejected` : "")
+        : `For “${task}”: nothing relevant enough. Astroglia returns nothing rather than noise.`;
+    } catch (err) { ticker.textContent = `Routing preview failed: ${err.message}`; }
+    invalidate();
+  });
   search.addEventListener("input", () => {
+    ranked = null;
     const q = search.value.trim().toLowerCase();
     highlight = q ? new Set(g.nodes.filter((n) => (n.title + " " + n.id).toLowerCase().includes(q)).map((n) => n.id)) : null;
     voidSel.value = ""; invalidate();
   });
   voidSel.addEventListener("input", () => {
     const v = (voidSel.voids || []).find((x) => x.key === voidSel.value);
-    highlight = v ? new Set(v.items.map((i) => i.id)) : null; search.value = "";
+    highlight = v ? new Set(v.items.map((i) => i.id)) : null; search.value = ""; ranked = null;
     if (v) ticker.textContent = `Weak zone: ${v.label}: ${v.rule}`;
     invalidate();
   });

@@ -109,6 +109,7 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
         per_kind[n["kind"]] = per_kind.get(n["kind"], 0) + 1
         used += cost
 
+    chosen.sort(key=lambda c: -c["score"])  # the stale penalty above lowers scores after the greedy pass
     result["selected"] = chosen
     result["estimated_tokens"] = used
     result["route_id"] = None if not log else store.log("route", task=task[:300], project=project,

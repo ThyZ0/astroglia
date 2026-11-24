@@ -225,3 +225,14 @@ def test_everyday_words_and_known_services_reach_the_right_tool(env):
               "summary": capabilities.describe_service("gmail") + ". MCP server (http): https://example"})
     r = router.route(s, env["cfg"], "mail the client the invoice")
     assert r["selected"][0]["id"] == "mcp_server:user:gmail"
+
+
+def test_stale_entries_drop_below_fresher_ones(env, tmp_path):
+    s, f = env["store"], tmp_path / "db.py"
+    f.write_text("v1", encoding="utf-8")
+    stale = experiences.remember(s, "sqlite locking fix", "sqlite database locking fix with busy timeout", files=[str(f)], confidence=0.95)
+    experiences.remember(s, "sqlite locking notes", "sqlite database locking notes", confidence=0.3)
+    f.write_text("v2 changed", encoding="utf-8")
+    sel = router.route(s, env["cfg"], "sqlite database locking", log=False)["selected"]
+    scores = [x["score"] for x in sel]
+    assert scores == sorted(scores, reverse=True) and any(x["id"] == stale["id"] and x["warnings"] for x in sel)

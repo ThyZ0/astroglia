@@ -201,7 +201,7 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
             return {"revealed": ref}
         if path == "/api/route":
             r = router.route(store, cfg, str(body.get("task", "")), project=body.get("project") or None,
-                             budget=int(body.get("budget") or 1200))
+                             budget=int(body.get("budget") or 1200), log=not body.get("preview"))
             return r
         if path == "/api/node":
             fields = {k: body[k] for k in EDITABLE if k in body}
