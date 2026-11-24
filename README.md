@@ -20,6 +20,7 @@ Astroglia tells it which resources fit the task, what it already learned, and wh
 | forgets the fix it found yesterday, or worse, trusts a note about code that has since changed | **`remember`** ties each note to the hashes of its files; when they change, the note is served flagged **stale** |
 | opens `cache.py` with no idea that a past decision explains why the TTL is 600 | **anchored memory**: what Astroglia remembers about a file arrives *when Claude reads that file*, without any query, flagged stale if the file changed; editing it lists the decisions that may no longer hold |
 | hits an error it already fixed last week, and debugs it from scratch | **déjà vu**: when a command fails, Astroglia checks whether that error was already solved and remembered, and says so (silent unless the match is strong: 0 false matches on 35 real errors) |
+| reopens a project without knowing where the last session stopped | a **handoff note** in the session manifest: last request, files edited, last error met, taken from the previous session's transcript |
 | ends a long session and the knowledge is gone | a **Stop hook** asks once, only after real work, whether something is worth keeping |
 
 Astroglia is named after the star-shaped brain cells that support neurons without doing the thinking. It does not think for Claude: it organises what Claude already has.

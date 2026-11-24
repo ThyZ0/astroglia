@@ -15,7 +15,7 @@ from .store import Store
 
 
 def manifest(store: Store, cfg: config.Config, cwd: str | None, sync_report: dict, verify_report: dict,
-             elapsed_ms: int) -> str:
+             elapsed_ms: int, session_id: str | None = None) -> str:
     st = store.stats()
     kinds = st["nodes_by_kind"]
     caps = {k: v for k, v in kinds.items() if k in capabilities.CAP_KINDS}
@@ -47,6 +47,10 @@ def manifest(store: Store, cfg: config.Config, cwd: str | None, sync_report: dic
         if b and b["status"] == "active":
             lines.append(f"Project brief (from its manifests, current): {b['summary'][:300].rstrip('. ')}. Full brief: get('{b['id']}').")
             store.log("served", id=b["id"], kind="brief", via="wake", bytes=b["meta"].get("bytes_summarized", 0))
+        ho = handoff_line(store, card["project"]["title"], session_id)
+        if ho:
+            lines.append(ho)
+            store.log("served", id=card["project"]["id"], kind="handoff", via="wake")
     lines.append("Use the astroglia MCP tools: route(task) before non-trivial work (relevant experiences, skills, tools, and why); "
                  "remember(...) after solving something reusable; feedback(ids, useful).")
     store.log("wake", elapsed_ms=elapsed_ms, new=len(new), missing=len(sync_report.get("missing", [])),
@@ -72,7 +76,7 @@ def session_start(payload: dict, cfg: config.Config | None = None) -> str:
         store.db.execute("DELETE FROM kv WHERE key LIKE 'anchor:%' OR key LIKE 'consolidated:%'"); store.db.commit()
         rep = providers.sync_all(store, cfg, roots, brief_budget_s=3.0, current=payload.get("cwd"))
         return manifest(store, cfg, payload.get("cwd"), rep["capabilities"], {"stale": rep["stale"]},
-                        int((time.perf_counter() - t0) * 1000))
+                        int((time.perf_counter() - t0) * 1000), payload.get("session_id"))
     finally:
         store.close()
 
@@ -112,6 +116,8 @@ def _error_lines(line: str) -> list[str]:
         if isinstance(part, dict) and part.get("type") == "tool_result" and part.get("is_error"):
             c = part.get("content")
             text = c if isinstance(c, str) else " ".join(x.get("text", "") for x in c or [] if isinstance(x, dict))
+            if "permission" in text.lower() and "denied" in text.lower():
+                continue  # a refused tool call is not an error in the work
             lines = [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("Exit code")]
             key = next((l for l in lines if re.search(r"[A-Z][A-Za-z]+(Error|Exception)|\berror\b", l)), lines[-1] if lines else "")
             if key:
@@ -119,12 +125,21 @@ def _error_lines(line: str) -> list[str]:
     return out
 
 
-def session_activity(transcript: str | Path, errors: list | None = None) -> tuple[list[str], bool]:
+def session_activity(transcript: str | Path, errors: list | None = None,
+                     prompts: list | None = None) -> tuple[list[str], bool]:
     """(files edited by tool calls, whether astroglia's remember tool was called) from a session transcript.
-    If `errors` is a list, the key line of each failed tool result is appended to it. Nothing is stored."""
+    If `errors` is a list, the key line of each failed tool result is appended to it; if `prompts` is a list,
+    the user's typed requests are appended (system notices, which start with '<', are skipped)."""
     files, remembered = [], False
     with open(transcript, encoding="utf-8", errors="replace") as fh:
         for line in fh:
+            if prompts is not None and '"type":"user"' in line.replace(" ", "") and '"tool_result"' not in line:
+                try:
+                    c = (json.loads(line).get("message") or {}).get("content")
+                except ValueError:
+                    c = None
+                if isinstance(c, str) and c.strip() and not c.lstrip().startswith("<"):
+                    prompts.append(" ".join(c.split())[:200])
             if errors is not None and '"is_error":true' in line.replace(" ", ""):
                 errors.extend(_error_lines(line))
                 continue
@@ -148,14 +163,63 @@ def session_activity(transcript: str | Path, errors: list | None = None) -> tupl
     return files, remembered
 
 
+HANDOFF_DAYS = 14
+
+
+def write_handoff(store: Store, cwd: str | None, session_id: str, prompts: list[str], files: list[str], errors: list[str]) -> None:
+    """Where this session left off in its project: last request, files edited, last error met. Local only."""
+    if not cwd or not (files or errors):
+        return
+    card = providers.project_card(store, cwd)
+    if not card:
+        return
+    root = str(Path(card["project"]["ref"] or cwd).resolve()).lower()
+    files = [f for f in files if str(Path(f).resolve()).lower().startswith(root)]  # only this project's files
+    if not (files or errors):
+        return
+    store.kv_set(f"handoff:{card['project']['title']}", json.dumps({
+        "ts": time.time(), "session_id": session_id, "task": prompts[-1] if prompts else None,
+        "files": [Path(f).name for f in files][-8:], "n_files": len(files),
+        "error": errors[-1] if errors else None}, ensure_ascii=False))
+
+
+def handoff_line(store: Store, project: str, session_id: str | None) -> str | None:
+    raw = store.kv_get(f"handoff:{project}")
+    if not raw:
+        return None
+    h = json.loads(raw)
+    age = time.time() - h["ts"]
+    if h.get("session_id") == session_id or age > HANDOFF_DAYS * 86400:
+        return None
+    when = f"{int(age // 3600)} h ago" if age >= 3600 else f"{max(1, int(age // 60))} min ago"
+    if age >= 86400:
+        when = f"{int(age // 86400)} day(s) ago"
+    parts = [f"Last session here ({when})"]
+    if h.get("task"):
+        parts.append(f"last request: \u201c{h['task'][:160]}\u201d")
+    if h.get("files"):
+        more = f" (+{h['n_files'] - len(h['files'])})" if h["n_files"] > len(h["files"]) else ""
+        parts.append("edited: " + ", ".join(h["files"]) + more)
+    if h.get("error"):
+        parts.append(f"last error met: {h['error'][:140]}")
+    return "; ".join(p.rstrip(". ") for p in parts) + "."
+
+
 def stop(payload: dict, cfg: config.Config | None = None) -> dict | None:
-    """CONSOLIDATE: once per session, if work was done and nothing was saved, ask Claude to save what is reusable."""
+    """Every turn end: refresh the project's handoff note. Once per session, if work was done and nothing was
+    saved, ask Claude to save what is reusable (CONSOLIDATE)."""
     cfg = cfg or config.load()
-    if not cfg.consolidate or payload.get("stop_hook_active") or not payload.get("transcript_path"):
+    if payload.get("stop_hook_active") or not payload.get("transcript_path"):
         return None
     errors: list[str] = []
-    files, remembered = session_activity(payload["transcript_path"], errors)
-    if remembered or len(files) < cfg.consolidate_min_files:
+    prompts: list[str] = []
+    files, remembered = session_activity(payload["transcript_path"], errors, prompts)
+    store = Store(cfg.db_path)
+    try:
+        write_handoff(store, payload.get("cwd"), payload.get("session_id", ""), prompts, files, errors)
+    finally:
+        store.close()
+    if not cfg.consolidate or remembered or len(files) < cfg.consolidate_min_files:
         return None
     store = Store(cfg.db_path)
     try:

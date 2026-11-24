@@ -20,6 +20,7 @@ Astroglia lui dit quelles ressources conviennent à la tâche, ce qu'il a déjà
 | oublie la correction trouvée hier, ou pire, se fie à une note sur du code qui a changé depuis | **`remember`** lie chaque note à l'empreinte de ses fichiers ; quand ils changent, la note est servie marquée **périmée** |
 | ouvre `cache.py` sans savoir qu'une décision passée explique pourquoi le TTL vaut 600 | **mémoire ancrée** : ce qu'Astroglia sait d'un fichier arrive *quand Claude lit ce fichier*, sans aucune requête, marqué périmé si le fichier a changé ; le modifier liste les décisions qui risquent de ne plus tenir |
 | retombe sur une erreur déjà corrigée la semaine dernière et repart de zéro | **déjà-vu** : quand une commande échoue, Astroglia vérifie si cette erreur a déjà été résolue et mémorisée, et le dit (silencieux sauf correspondance forte : 0 fausse alerte sur 35 erreurs réelles) |
+| rouvre un projet sans savoir où la dernière session s'est arrêtée | une **note de reprise** dans le manifeste de démarrage : dernière demande, fichiers modifiés, dernière erreur rencontrée, tirées du transcript de la session précédente |
 | termine une longue session et la connaissance est perdue | un **hook de fin de session** demande une seule fois, seulement après un vrai travail, s'il y a quelque chose à garder |
 
 Les astrocytes sont les cellules du cerveau en forme d'étoile qui soutiennent les neurones sans penser à leur place. Astroglia ne pense pas pour Claude : il organise ce que Claude possède déjà.
