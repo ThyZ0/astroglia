@@ -81,8 +81,9 @@ astroglia ui
 |---|---|
 | ![Context Monitor](docs/images/context-monitor.png) **Context Monitor.** What the router selected or rejected for a task, with the score breakdown, and what Claude was served. | ![Project card](docs/images/project-card.png) **Projects.** The brief, the indexes and every remembered entry, with the exact files that changed. |
 | ![Galaxy selection](docs/images/galaxy-selected.png) **Galaxy.** Every star is a stored entry and every line a stored relation. Select a star to see its relations, their type and direction; shift+click a second one to trace the path. Pulses only follow real events. | ![Dashboard](docs/images/dashboard.png) **Dashboard.** What Astroglia actually did (counted) and what it saved (estimated, with the formula). |
+| ![Health](docs/images/health.png) **Health.** A score with its four ratios explained, suggested relations and overlapping memory with one-click fixes, what Claude reuses most, weak zones. | ![Timeline](docs/images/timeline.png) **Timeline.** What was learned, changed, went stale or was re-validated, day by day: "what changed since last time?" |
 
-Also: **Neural view** (walk the graph entry by entry), **Clusters** (a plugin or a project at a time), **Voids** (stale, isolated, undocumented, unverifiable: each with the rule that found it), **Memory** (edit, merge, link, restore any version).
+Also: **Neural view** (walk the graph entry by entry), **Clusters** (a plugin or a project at a time), **Memory** (edit, merge, link, restore any version), **Capabilities** (every skill, plugin and MCP server, with the tools `astroglia probe` learned).
 
 ## How it works
 

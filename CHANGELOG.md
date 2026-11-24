@@ -2,6 +2,13 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [Unreleased]
+### Fixed
+- Stale warnings delivered by anchored memory were not counted in `astroglia value` (dashboard showed 2 stale entries, 0 warnings).
+### Added
+- `astroglia doctor` flags local MCP servers not yet probed.
+- README screenshots for Health and Timeline, retaken on 0.9.
+
 ## [0.9.0] - 2026-11-24
 ### Added
 - `bench/holdout-tasks.json`: 15 routing tasks written separately to check generalisation. It revealed hit@1 0.40 on unseen phrasing.

@@ -67,3 +67,12 @@ def test_session_start_clears_old_session_markers(env):
     call(env, "Read", src, session="old")
     hooks.session_start({}, env["cfg"])
     assert not env["store"].db.execute("SELECT 1 FROM kv WHERE key LIKE 'anchor:%'").fetchone()
+
+
+def test_stale_warnings_from_anchors_are_counted(env):
+    from astroglia import metrics
+    src = write(env["tmp"] / "s.py", "v = 1\n")
+    experiences.remember(env["store"], "S fact", "about s.py", files=[str(src)])
+    src.write_text("v = 2\n", encoding="utf-8")
+    assert "STALE" in call(env, "Read", src)
+    assert metrics.value(env["store"])["measured"]["stale_warnings"] == 1

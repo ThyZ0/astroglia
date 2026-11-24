@@ -39,6 +39,7 @@ def value(store: Store, days: int | None = None) -> dict:
                 brief_bytes += p.get("bytes", 0)
             elif p.get("kind") == "anchor":
                 m["anchored_served"] += p.get("count", 1)
+                m["stale_warnings"] += p.get("stale", 0)
             elif p.get("kind") == "project_card":
                 m["project_cards_served"] += 1
                 m["stale_warnings"] += p.get("stale", 0)
