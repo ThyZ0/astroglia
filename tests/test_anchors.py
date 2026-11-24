@@ -76,3 +76,27 @@ def test_stale_warnings_from_anchors_are_counted(env):
     src.write_text("v = 2\n", encoding="utf-8")
     assert "STALE" in call(env, "Read", src)
     assert metrics.value(env["store"])["measured"]["stale_warnings"] == 1
+
+
+def test_cortex_reads_and_edits_trigger_anchored_memory(env):
+    import re
+    from astroglia import cli
+    root = env["tmp"] / "repo"
+    src = write(root / "crates" / "core" / "src" / "lib.rs", "fn main() {}\n")
+    env["store"].upsert({"id": "project:repo", "kind": "project", "title": "repo", "source": "provider:projects",
+                         "meta": {"root": str(root)}})
+    d = experiences.remember(env["store"], "lib.rs must stay no_std", "Embedded target: no allocator.", kind="decision",
+                             files=[str(src)])
+    p = lambda tool, ti, s="c1": anchors.respond({"tool_name": tool, "tool_input": ti, "session_id": s}, env["cfg"].db_path)
+    # read through Cortex with a symbol id, path relative to the project root
+    assert d["id"] in p("mcp__cortex__cortex_read", {"cible": "S:crates/core/src/lib.rs#main"})
+    assert p("mcp__cortex__cortex_card", {"cible": "crates/core/src/lib.rs:1-3"}) is None   # same file, same session
+    # edits through Cortex: JSON batch and text format; dry runs are ignored
+    assert p("mcp__cortex__cortex_edit", {"edits": [{"file": "crates/core/src/lib.rs", "old": "a", "new": "b"}], "dry_run": True}) is None
+    assert d["id"] in p("mcp__cortex__cortex_edit", {"edits": [{"file": "crates/core/src/lib.rs", "old": "a", "new": "b"}]})
+    assert d["id"] in p("mcp__cortex__cortex_edit", {"text": "@ crates/core/src/lib.rs\n< a\n> b\n"}, s="c2")
+    assert p("mcp__cortex__cortex_find", {"question": "lib.rs"}) is None                      # searches touch no file
+    # the installed matcher catches these tools and nothing else
+    m = re.compile(cli.FILE_TOOLS)
+    assert all(m.search(t) for t in ("Read", "Edit", "mcp__cortex__cortex_read", "mcp__cortex__cortex_edit"))
+    assert not any(m.search(t) for t in ("Bash", "mcp__cortex__cortex_find", "mcp__spectra__browser_click", "ReadMcpResourceTool"))

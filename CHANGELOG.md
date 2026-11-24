@@ -3,6 +3,8 @@
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
+### Added
+- Anchored memory now also reacts when Claude reads or edits code through Cortex (`cortex_read`, `cortex_card`, `cortex_outline`, `cortex_context`, `cortex_edit`; Cortex ids and project-relative paths resolved; dry runs ignored). Cortex recommends its tools before reading files, so most code reads used to bypass anchored memory. The hook only runs after Cortex has answered and only adds context.
 ### Fixed
 - `astroglia probe` could start a second copy of a server already used by Claude Code. Spectra, at start-up, closes Chrome instances it considers orphaned, so a probe could disturb a live browser session. Probe now skips any server whose program is running.
 - Stale warnings delivered by anchored memory were not counted in `astroglia value` (dashboard showed 2 stale entries, 0 warnings).

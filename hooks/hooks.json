@@ -25,7 +25,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit",
+        "matcher": "^(Read|Edit|Write|MultiEdit|NotebookEdit|mcp__[A-Za-z0-9-]+__cortex_(read|card|outline|context|edit))$",
         "hooks": [
           {
             "type": "command",

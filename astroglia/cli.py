@@ -13,7 +13,7 @@ from . import __version__, capabilities, config, experiences, providers, router
 from .store import Store
 
 HOOK_MARK = "-m astroglia hook"
-FILE_TOOLS = "Read|Edit|Write|MultiEdit|NotebookEdit"  # anchored memory: knowledge served at the file it is about
+FILE_TOOLS = "^(Read|Edit|Write|MultiEdit|NotebookEdit|mcp__[A-Za-z0-9-]+__cortex_(read|card|outline|context|edit))$"  # regex: Claude Code file tools + Cortex read/edit tools
 
 
 def _out(obj) -> None:

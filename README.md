@@ -134,7 +134,7 @@ Load (`python bench/load.py`, synthetic stores): routing over 20,500 entries in 
 
 Astroglia must never get in the way of the tools it points to. What it does, checked on a real install with Cortex and Spectra running:
 
-- **Cortex**: at session start Astroglia runs `cortex list` and `cortex stats` (read-only; the index files are not touched). It never re-indexes and never calls Cortex's MCP server.
+- **Cortex**: at session start Astroglia runs `cortex list` and `cortex stats` (read-only; the index files are not touched). It never re-indexes and never calls Cortex's MCP server. When Claude reads or edits code through Cortex's tools, Astroglia adds what it remembers about those files after Cortex has answered.
 - **Graphify**: reads `graphify-out/graph.json`, cached by modification time; never writes it.
 - **Spectra and other MCP servers**: Astroglia's file hook matches only Claude Code's own `Read/Edit/Write` tools, never MCP tools. `astroglia probe` refuses to start a server whose program is already running, because a second copy can disturb the one in use (Spectra, for instance, closes Chrome instances it considers orphaned when it starts). Run it with Claude Code closed.
 - Every hook fails open and is time-limited; a broken Astroglia leaves Claude Code and its servers untouched.
