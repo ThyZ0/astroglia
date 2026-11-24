@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 ## [Unreleased]
 ### Fixed
 - Stale warnings delivered by anchored memory were not counted in `astroglia value` (dashboard showed 2 stale entries, 0 warnings).
+### Performance
+- Session start: every sync committed each of ~170 unchanged rows separately. `Store.batch()` groups a sync into one transaction: Astroglia's part of start-up 146-1064 ms -> 119-142 ms on a real install (whole hook incl. Python start-up: 330-880 ms -> ~300 ms).
 ### Added
 - `astroglia doctor` flags local MCP servers not yet probed.
 - README screenshots for Health and Timeline, retaken on 0.9.

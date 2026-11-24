@@ -6,6 +6,7 @@ so any change (manual or automatic) can be inspected and reverted.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -77,6 +78,7 @@ class Store:
         if str(path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
         # threadsafety==3 (serialized SQLite) makes sharing safe; the UI test server runs in a thread.
+        self._batching = False
         self.db = sqlite3.connect(str(path), timeout=5, check_same_thread=sqlite3.threadsafety != 3)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -93,7 +95,22 @@ class Store:
             self.db.executescript("CREATE TABLE IF NOT EXISTS file_cache(path TEXT PRIMARY KEY, size INTEGER NOT NULL, "
                                   "mtime_ns INTEGER NOT NULL, sha256 TEXT NOT NULL)")
         self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-        self.db.commit()
+        self._commit()
+
+    def _commit(self) -> None:
+        if not self._batching:
+            self.db.commit()
+
+    @contextmanager
+    def batch(self):
+        """Group many writes into one transaction (one disk sync instead of one per row)."""
+        outer, self._batching = self._batching, True
+        try:
+            yield self
+        finally:
+            self._batching = outer
+            if not outer:
+                self.db.commit()
 
     def close(self) -> None:
         self.db.close()
@@ -119,14 +136,14 @@ class Store:
             cols = ", ".join(node)
             self.db.execute(f"INSERT INTO nodes({cols}) VALUES({', '.join('?' * len(node))})", tuple(node.values()))
             self._index(node["id"])
-            self.db.commit()
+            self._commit()
             return "created"
         merged = {k: old[k] for k in old.keys()}
         changed = any(k in node and node[k] != merged[k] for k in _CONTENT)
         if not changed:
             if "verified" in node:
                 self.db.execute("UPDATE nodes SET verified=? WHERE id=?", (node["verified"], node["id"]))
-                self.db.commit()
+                self._commit()
             return "unchanged"
         self.db.execute("INSERT INTO history(node_id, ts, op, snapshot) VALUES(?,?,?,?)",
                         (node["id"], ts, op, json.dumps(merged, ensure_ascii=False)))
@@ -137,7 +154,7 @@ class Store:
         self.db.execute(f"UPDATE nodes SET {sets} WHERE id=?",
                         tuple(v for k, v in merged.items() if k != "id") + (node["id"],))
         self._index(node["id"])
-        self.db.commit()
+        self._commit()
         return "updated"
 
     def set_status(self, node_id: str, status: str, op: str, **meta_updates) -> None:
@@ -157,7 +174,7 @@ class Store:
         self.db.execute("DELETE FROM nodes WHERE id=?", (node_id,))
         self.db.execute("DELETE FROM nodes_fts WHERE id=?", (node_id,))
         self.db.execute("DELETE FROM edges WHERE src=? OR dst=?", (node_id, node_id))
-        self.db.commit()
+        self._commit()
         return True
 
     def history(self, node_id: str) -> list[dict]:
@@ -189,11 +206,15 @@ class Store:
 
     def bump(self, node_id: str, uses: int = 0, successes: int = 0) -> None:
         self.db.execute("UPDATE nodes SET uses=uses+?, successes=successes+? WHERE id=?", (uses, successes, node_id))
-        self.db.commit()
+        self._commit()
 
     def reconcile(self, nodes: list[dict], source: str, edges: list[tuple] = (), op: str = "sync") -> dict:
         """Make the store match what a source currently reports: upsert, and flag vanished nodes
         of that source as 'missing' (never delete). Returns created/updated/missing ids."""
+        with self.batch():
+            return self._reconcile(nodes, source, edges, op)
+
+    def _reconcile(self, nodes: list[dict], source: str, edges: list[tuple], op: str) -> dict:
         ts = now()
         report = {"created": [], "updated": [], "missing": [], "unchanged": 0}
         for n in nodes:
@@ -220,11 +241,11 @@ class Store:
             "INSERT INTO edges(src,dst,type,source,confidence,created,verified) VALUES(?,?,?,?,?,?,?) "
             "ON CONFLICT(src,dst,type) DO UPDATE SET confidence=excluded.confidence, verified=excluded.verified, source=excluded.source",
             (src, dst, type, source, confidence, ts, ts))
-        self.db.commit()
+        self._commit()
 
     def unlink(self, src: str, dst: str, type: str) -> None:
         self.db.execute("DELETE FROM edges WHERE src=? AND dst=? AND type=?", (src, dst, type))
-        self.db.commit()
+        self._commit()
 
     def edges(self, node_id: str | None = None, type: str | None = None) -> list[dict]:
         q, args = "SELECT * FROM edges WHERE 1=1", []
@@ -246,7 +267,7 @@ class Store:
     def log(self, kind: str, /, **payload) -> int:
         cur = self.db.execute("INSERT INTO events(ts, kind, payload) VALUES(?,?,?)",
                               (now(), kind, json.dumps(payload, ensure_ascii=False)))
-        self.db.commit()
+        self._commit()
         return cur.lastrowid
 
     def events(self, limit: int = 50, kind: str | None = None, after: int | None = None) -> list[dict]:
@@ -265,7 +286,7 @@ class Store:
 
     def kv_set(self, key: str, value: str) -> None:
         self.db.execute("INSERT INTO kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
-        self.db.commit()
+        self._commit()
 
     def stats(self) -> dict:
         kinds = {r[0]: r[1] for r in self.db.execute("SELECT kind, COUNT(*) FROM nodes GROUP BY kind")}
