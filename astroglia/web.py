@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__, config, experiences, providers, router
-from .store import EDGE_TYPES, Store
+from .store import EDGE_TYPES, Store, now as now_iso
 
 UI_DIR = Path(__file__).parent / "ui"
 STATIC = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
@@ -143,7 +143,8 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
             kinds = one("kinds", "")
             rows = [n for n in store.nodes() if not kinds or n["kind"] in kinds.split(",")]
             return [{k: n[k] for k in ("id", "kind", "title", "summary", "status", "project", "confidence", "uses",
-                                       "successes", "verified", "ref", "tags")} | {"origin": n["meta"].get("origin")}
+                                       "successes", "verified", "ref", "tags", "source", "created")}
+                    | {"origin": n["meta"].get("origin"), "reviewed": bool(n["meta"].get("reviewed"))}
                     for n in rows]
         if path == "/api/edges":
             return store.edges(type=one("type"))
@@ -214,6 +215,12 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
                 if k in fields:
                     fields[k] = min(1.0, max(0.0, float(fields[k])))
             return {"result": store.upsert({"id": body["id"], **fields}, op="ui-edit")}
+        if path == "/api/review":  # the user read an entry Claude saved on its own and keeps it
+            n = store.get(str(body.get("id")))
+            if n is None or n["kind"] not in MEMORY_KINDS:
+                return 404, {"error": "unknown memory entry"}
+            return {"result": store.upsert({"id": n["id"], "meta": {**n["meta"], "reviewed": now_iso()},
+                                            "confidence": max(n["confidence"], 0.8)}, op="ui-review")}
         if path == "/api/delete":
             return {"deleted": store.delete(str(body.get("id")))}
         if path == "/api/restore":

@@ -147,3 +147,15 @@ def test_project_card_api_includes_brief_and_handoff_and_user_can_remember(serve
     r = json.loads(body)
     assert code == 200 and env["store"].get(r["id"])["source"] == "user" and env["store"].get(r["id"])["fingerprint"]
     assert server("/api/remember", {"title": "x", "summary": "password = hunter2hunter2"})[0] == 400
+
+
+def test_review_keeps_what_claude_saved_and_only_memory(server, env):
+    e = experiences.remember(env["store"], "Cart rounding", "Round once at the end", confidence=0.6)  # source "agent"
+    rows = {n["id"]: n for n in json.loads(server("/api/nodes?kinds=experience")[1])}
+    assert rows[e["id"]]["source"] == "agent" and rows[e["id"]]["reviewed"] is False
+    assert server("/api/review", {"id": e["id"]})[0] == 200
+    n = env["store"].get(e["id"])
+    assert n["meta"]["reviewed"] and n["confidence"] == 0.8 and n["summary"] == "Round once at the end"
+    assert json.loads(server("/api/nodes?kinds=experience")[1])[0]["reviewed"] is True
+    env["store"].upsert({"id": "skill:user:x", "kind": "skill", "title": "x", "summary": "s", "source": "scan:claude-code"})
+    assert server("/api/review", {"id": "skill:user:x"})[0] == 404  # a scanned capability is not reviewed here

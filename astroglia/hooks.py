@@ -296,8 +296,8 @@ def stop(payload: dict, cfg: config.Config | None = None) -> dict | None:
     return {"decision": "block", "reason":
             f"[Astroglia] This session edited {len(files)} files and saved nothing to memory. "
             "If it produced something a future session should not have to rediscover (a fix and its cause, a decision "
-            "and why, how a module works), save it now with the astroglia `remember` tool, passing the files it depends "
-            "on so it can be flagged stale later. Files edited this session:\n" + listed +
+            "and why, how a module works), save the one to three things most worth keeping with the astroglia `remember` tool (one entry each), "
+            "passing the files each depends on so it can be flagged stale later. The user reviews them in Astroglia's Memory page. Files edited this session:\n" + listed +
             ("\nErrors met this session (quote the one you fixed in the summary, so Astroglia recognises it next time):\n"
              + "\n".join(f"- {e}" for e in list(dict.fromkeys(errors))[-3:]) if errors else "") +
             "\nIf nothing is worth keeping, simply finish. This reminder appears once."}

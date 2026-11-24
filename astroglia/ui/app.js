@@ -437,7 +437,27 @@ views.memory = async () => {
     li.setAttribute("aria-selected", "true");
     showNode(detail, n.id, { editable: true });
   };
-  refreshList = async () => { nodes = await api(`/api/nodes?kinds=${kinds.join(",")}`); draw(); };
+  // What Claude saved on its own and nobody has read yet: keep it (trusted more) or delete it (restorable from history)
+  const review = h("section.card.review", { hidden: true, "aria-label": "Entries to review" });
+  const drawReview = () => {
+    const todo = nodes.filter((n) => n.source === "agent" && !n.reviewed).sort((a, b) => (a.created < b.created ? 1 : -1));
+    review.hidden = !todo.length;
+    const act = async (n, keep) => {
+      try {
+        await api(keep ? "/api/review" : "/api/delete", { id: n.id });
+        toast(keep ? `Kept: ${n.title}` : `Deleted: ${n.title} (restorable from its history)`); await refreshList();
+      } catch (err) { toast(err.message, true); }
+    };
+    fill(review, h("h2", {}, `To review (${todo.length})`),
+      h("p.small.muted", {}, "Saved by Claude on its own. Keep what is right; delete what is wrong or not worth remembering."),
+      h("ul.review-list", {}, todo.slice(0, 8).map((n) => h("li", {},
+        h("div.title", {}, h("strong", {}, n.title), kindChip(n.kind), n.project ? h("span.small.muted", {}, ` · ${n.project}`) : null),
+        h("div.desc", {}, n.summary),
+        h("div.row", {}, h("button.btn.small.primary", { type: "button", onclick: () => act(n, true) }, "Keep"),
+          h("button.btn.small.ghost", { type: "button", onclick: () => act(n, false) }, "Delete"))))),
+      todo.length > 8 ? h("p.small.muted", {}, `+${todo.length - 8} more`) : null);
+  };
+  refreshList = async () => { nodes = await api(`/api/nodes?kinds=${kinds.join(",")}`); draw(); drawReview(); };
   q.addEventListener("input", draw);
   await refreshList();
   const projects = (await api("/api/nodes?kinds=project")).map((p) => p.title).sort();
@@ -468,6 +488,7 @@ views.memory = async () => {
   };
   setView(h("h1", {}, "Memory"),
     h("p.lede", {}, "What the agent has learned. Edits, deletions and merges are versioned and can be restored. Entries tied to files are flagged stale when those files change."),
+    review,
     h("div.filters", {}, q, seg, h("button.btn.primary", { type: "button", onclick: newEntry }, "+ New entry")),
     h("div.grid.split", {}, h("div.card", {}, list), detail));
 };

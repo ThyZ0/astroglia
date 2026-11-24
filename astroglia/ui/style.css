@@ -267,3 +267,9 @@ input, textarea, select { border-radius: 3px; }
 .galaxy-top .row > input[type=search] { min-width: 0; width: 150px; }
 .galaxy-top .row > select { min-width: 0; width: 170px; }
 .galaxy-top p.small { white-space: nowrap; }
+
+.review { margin-bottom: 16px; border-color: rgba(232, 196, 106, .35); }
+.review-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.review-list li { padding: 10px 0; border-top: 1px solid rgba(196, 210, 236, .1); }
+.review-list .desc { margin: 4px 0 8px; color: var(--text-secondary); }
+.review-list .title { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
