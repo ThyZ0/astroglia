@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 - Everyday-word synonyms (todo -> task, workbook -> spreadsheet, mail -> email...) and descriptions for well-known services (Gmail, Slack, Linear, Jira, Notion, GitHub...), whose MCP configuration holds only a command line. Holdout hit@1 0.40 -> 0.80, hit@3 0.53 -> 0.93; local 0.82 -> 0.86.
 - `bench/blind-tasks.json`, run once: hit@1 0.67, hit@3 0.67, recall 0.70 (BM25: 0.60). Not to be tuned against.
 - `astroglia probe`: asks local (stdio) MCP servers for their tool list (MCP tools/list), so routing knows what a server does instead of seeing only its command line. Explicit only (it starts configured programs); remote servers are never contacted; re-probed only when the command line changes; failures recorded, server logs go to `probe-servers.log`. Real install: Cortex 23 tools, Spectra 38, 1.5 s. Blind check hit@1 0.67 -> 0.80, recall 0.70 -> 0.77.
+- `bench/blind2-tasks.json`, run once: hit@1 0.73, hit@3 0.87, recall 0.79 (BM25 0.67).
 - Context Monitor and Dashboard show memory served at the file.
 ### Changed
 - The consolidation reminder lists full paths of edited files.

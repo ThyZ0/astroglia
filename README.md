@@ -111,6 +111,8 @@ Routing on one real install (74 capabilities). `bench/local-tasks.json` (22 task
 
 **Blind check** (`bench/blind-tasks.json`, 15 tasks written after 0.9 and run once, never tuned against): hit@1 **0.67**, hit@3 0.67, recall 0.70, against 0.60 hit@1 for plain BM25. This is the honest figure for unseen phrasing. Its misses were mostly MCP servers known only by their command line (e.g. Cortex for "who calls this function"). `astroglia probe` (asks local servers for their tool list) raised it to hit@1 **0.80**, recall 0.77; this second figure is no longer blind.
 
+**Second blind check** (`bench/blind2-tasks.json`, after probe and contextual feedback, run once): hit@1 **0.73**, hit@3 **0.87**, recall 0.79, against 0.67 hit@1 for plain BM25.
+
 The holdout exposed what the first benchmark hid: MCP servers had no description (their configuration only holds a command line), and everyday words ("todo", "workbook", "mail") missed the words tools use. Caveat: the 0.9 glossaries were written after reading the holdout failures, so the holdout is no longer blind; a new blind set is the next check. On these tasks plain BM25 over the same enriched index scores the same hit@1: Astroglia's added value is fewer, explained results (4 instead of every match), staleness and memory, not ranking alone.
 
 Value scenarios (`python bench/value.py <demo-dir>`; assumptions printed with the results):

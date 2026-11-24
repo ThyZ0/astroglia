@@ -1,0 +1,20 @@
+{
+  "about": "Blind routing tasks v2, written 2026-11-24 after contextual feedback and probe, run once and never tuned against.",
+  "tasks": [
+    {"task": "where is the function that parses the config file defined", "expect": ["mcp_server:user:cortex"]},
+    {"task": "take a screenshot of the homepage at mobile size", "expect": ["mcp_server:user:spectra", "skill:user:chrome-browser"]},
+    {"task": "post a summary of the release in the general channel", "expect": ["mcp_server:productivity@synced:slack"]},
+    {"task": "which emails did my boss send me yesterday", "expect": ["mcp_server:productivity@synced:gmail"]},
+    {"task": "am I free on thursday afternoon", "expect": ["mcp_server:productivity@synced:google calendar"]},
+    {"task": "create an issue for the login regression", "expect": ["mcp_server:productivity@synced:linear", "mcp_server:productivity@synced:atlassian", "mcp_server:productivity@synced:asana", "mcp_server:productivity@synced:clickup", "mcp_server:productivity@synced:monday"]},
+    {"task": "I finished the feature, what should I do before merging", "expect": ["skill:superpowers@synced:finishing-a-development-branch", "skill:superpowers@synced:verification-before-completion"]},
+    {"task": "explain this formula from my physics notes", "expect": ["skill:study-desk@synced:study-explain"]},
+    {"task": "a mock exam on chapter 2 with a timer", "expect": ["skill:study-desk@synced:study-exam"]},
+    {"task": "build me a weekly revision schedule before the finals", "expect": ["skill:study-desk@synced:study-plan"]},
+    {"task": "my reviewer left comments, how do I handle them", "expect": ["skill:superpowers@synced:receiving-code-review"]},
+    {"task": "extract the text from this scanned pdf", "expect": ["skill:user:pdf"]},
+    {"task": "show me how much ponytail saved me", "expect": ["skill:ponytail@ponytail:ponytail-gain"]},
+    {"task": "list every shortcut we left in the code", "expect": ["skill:ponytail@ponytail:ponytail-debt"]},
+    {"task": "import my memories from chatgpt", "expect": ["skill:user:import-memory"]}
+  ]
+}
