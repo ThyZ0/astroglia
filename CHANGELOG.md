@@ -3,6 +3,9 @@
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
+### Added
+- **Meaning-based routing (optional)**: `pip install "astroglia[semantic]"`, then `astroglia semantic --enable` (downloads a ~30 MB local model once; afterwards no network, no LLM call; `--disable` deletes it; any failure falls back to keywords). Measured on the four routing sets, with vs without: hit@1 0.86/0.80/0.73/0.73 -> 0.86/0.87/0.80/0.80, hit@3 0.95/0.93/0.87/0.87 -> 1.00/0.93/0.93/0.87, recall up on all four; weight chosen on two sets and checked on the two blind ones. Routing cost: +1.5 ms here, 32 ms at 20,000 entries (vectors cached until the store changes). Rejected after measuring: a retrieval-tuned model, a multilingual model, raw French sentences (matched by language, lost Cortex on a French task).
+- French->English glossary extended with general development vocabulary (find, function, folder, screenshot, crash, task, week, meeting...), used by keyword search and to translate French tasks for the model.
 ### Fixed
 - Sentences that say when *not* to use a capability ("It is not for websites, which go through Chrome") are no longer indexed: their words name other tools' jobs, so computer-use was proposed for website tasks and study-plan for "what do I have to do this week". Memory entries keep every word. The search index is rebuilt once on open (no schema change: older versions still open the database). Measured: blind hit@3 0.80 -> 0.87, other sets unchanged; no set got worse. Most remaining misses share no word with the right tool ("am I free on thursday" vs a calendar): keyword matching cannot fix those.
 ### Changed

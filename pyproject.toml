@@ -27,7 +27,8 @@ Issues = "https://github.com/ThyZ0/astroglia/issues"
 Changelog = "https://github.com/ThyZ0/astroglia/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "numpy"]  # numpy: semantic routing tests (fake model)
+semantic = ["model2vec>=0.4"]  # meaning-based routing; then `astroglia semantic --enable`
 
 [project.scripts]
 astroglia = "astroglia.cli:main"

@@ -10,6 +10,7 @@ import json
 import re
 from datetime import datetime, timezone
 
+from . import semantic
 from .config import Config
 from .experiences import verify
 from .store import CAP_KINDS, Store
@@ -37,6 +38,15 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
         result["note"] = "Task has no searchable terms."
         return result
     hits = store.fts(match)
+    sims = None
+    if semantic.enabled(cfg):  # optional: also consider what is close in meaning, even with no word in common
+        sims = semantic.similarities(cfg, store, task, lambda k, status: status not in SKIP_STATUS and (
+            (kinds and k in kinds) or (not kinds and k not in DEFAULT_EXCLUDED_KINDS)))
+        if sims:
+            have = {nid for nid, _ in hits}
+            # meaning alone may bring in capabilities; memory still needs a shared word (no labels to measure it yet)
+            caps = [i for i in sorted(sims, key=lambda i: -sims[i]) if i.split(":", 1)[0] in semantic.CAP_KINDS]
+            hits = hits + [(i, 0.0) for i in caps[:10] if i not in have]
     if not hits:
         if log:
             store.log("route", task=task[:300], selected=[], rejected=0)
@@ -66,7 +76,7 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
         fresh = 0.5 ** (_age_days(n["verified"]) / cfg.half_life_days)
         succ = ctx_success.get(nid, 0.5)  # neutral prior when there is no feedback for this resource
         proj = 1.0 if project and n["project"] and project.lower() in n["project"].lower() else 0.0
-        parts = {"relevance": rel, "named": named, "confidence": n["confidence"], "freshness": fresh, "success": succ, "project": proj}
+        parts = {"relevance": rel, **({"meaning": sims.get(nid, 0.0)} if sims else {}), "named": named, "confidence": n["confidence"], "freshness": fresh, "success": succ, "project": proj}
         score = sum(w.get(k, 0) * v for k, v in parts.items())
         cands.append((score, n, parts))
     cands.sort(key=lambda c: -c[0])

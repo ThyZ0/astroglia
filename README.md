@@ -119,6 +119,15 @@ Routing on one real install (74 capabilities). `bench/local-tasks.json` (22 task
 
 The holdout exposed what the first benchmark hid: MCP servers had no description (their configuration only holds a command line), and everyday words ("todo", "workbook", "mail") missed the words tools use. Caveat: the 0.9 glossaries were written after reading the holdout failures, so the holdout is no longer blind; a new blind set is the next check. On these tasks plain BM25 over the same enriched index scores the same hit@1: Astroglia's added value is fewer, explained results (4 instead of every match), staleness and memory, not ranking alone.
 
+**Meaning-based matching (optional, 0.14).** Keyword search cannot link "am I free on thursday" to a calendar, or "simplify this function" to a simplification skill: they share no word. With `pip install "astroglia[semantic]"` and `astroglia semantic --enable`, a small local model (model2vec potion-base-8M, about 30 MB, downloaded once, then read from disk: no network, no LLM call) adds how close in meaning each capability is. Same install, same four sets, measured with and without (`ASTROGLIA_SEMANTIC=0`):
+
+| | local hit@1 / hit@3 | holdout hit@1 / hit@3 | blind hit@1 / hit@3 | blind2 hit@1 / hit@3 | recall (4 sets) |
+|---|---|---|---|---|---|
+| keywords only (plain BM25 hit@1: 0.86, 0.80, 0.73, 0.67) | 0.86 / 0.95 | 0.80 / 0.93 | 0.73 / 0.87 | 0.73 / 0.87 | 0.91, 0.78, 0.80, 0.79 |
+| + meaning | 0.86 / **1.00** | **0.87** / 0.93 | **0.80** / **0.93** | **0.80** / 0.87 | **0.97, 0.82, 0.87, 0.86** |
+
+The weight (1.5) was chosen on the first two sets and checked on the two blind ones; no set got worse and the number of results did not grow. Three alternatives were measured and dropped: a retrieval-tuned model and a multilingual one (both worse), and feeding raw French sentences to the English model (it matched French descriptions by language: Cortex disappeared for "trouver où est définie une fonction"); French words are now replaced by their English gloss. Meaning alone can bring in a capability; a memory entry still needs a shared word, because no labelled set measures memory yet. Cost: 1.2 s once per process to load the model and encode every entry, then about 1.5 ms per routing on this install and 32 ms at 20,000 entries (15 ms without).
+
 Value scenarios (`python bench/value.py <demo-dir>`; assumptions printed with the results):
 
 | Scenario | Without Astroglia | Plain notes file + keyword search | Astroglia |

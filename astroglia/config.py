@@ -13,6 +13,7 @@ DEFAULT_WEIGHTS = {
     "freshness": 0.10,   # decays with time since last verification
     "success": 0.10,     # observed usefulness (feedback)
     "project": 0.10,     # belongs to the project being worked on
+    "meaning": 1.5,      # semantic similarity, only when enabled (`astroglia semantic --enable`); chosen on 2 bench sets, checked on 2 others
 }
 
 

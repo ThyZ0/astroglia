@@ -67,6 +67,15 @@ Choix des outils, sur une installation réelle (74 capacités, 22 tâches annot�
 | BM25 seul | 0,82 | 0,82 | n/a | toutes les correspondances |
 | Astroglia `route` | 0,82 | **0,86** | 0,79 | **4,0** (~324 tokens, estimés) |
 
+**Compréhension du sens (optionnelle, 0.14).** La recherche par mots-clés ne peut pas relier « suis-je libre jeudi » à un agenda : aucun mot en commun. Avec `pip install "astroglia[semantic]"` puis `astroglia semantic --enable`, un petit modèle local (model2vec potion-base-8M, environ 30 Mo, téléchargé une fois puis lu sur le disque : aucun accès réseau, aucun appel d'IA) mesure la proximité de sens. Mesuré avec et sans, sur la même installation :
+
+| | local top 1 / top 3 | holdout top 1 / top 3 | blind top 1 / top 3 | blind2 top 1 / top 3 |
+|---|---|---|---|---|
+| mots-clés seuls | 0,86 / 0,95 | 0,80 / 0,93 | 0,73 / 0,87 | 0,73 / 0,87 |
+| + sens | 0,86 / **1,00** | **0,87** / 0,93 | **0,80** / **0,93** | **0,80** / 0,87 |
+
+Le réglage a été choisi sur les deux premiers jeux et contrôlé sur les deux autres ; aucun ne baisse et le nombre de suggestions n'augmente pas. Coût : 1,2 s une fois au démarrage, puis environ 1,5 ms par demande ici, 32 ms à 20 000 entrées.
+
 Scénarios de valeur (`python bench/value.py <dossier-demo>`) :
 
 | Scénario | Sans Astroglia | Fichier de notes + recherche par mot-clé | Astroglia |

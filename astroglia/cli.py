@@ -189,6 +189,9 @@ def main(argv=None) -> int:
     bn = sub.add_parser("bench", help="routing benchmark vs plain BM25"); bn.add_argument("labels")
     ui = sub.add_parser("ui", help="open the local web interface"); ui.add_argument("--port", type=int, default=8765)
     ui.add_argument("--no-browser", action="store_true")
+    sm = sub.add_parser("semantic", help="optional meaning-based matching for routing (local model, ~30 MB)")
+    sm.add_argument("--enable", action="store_true", help="download the model once into the data dir")
+    sm.add_argument("--disable", action="store_true", help="delete the model; routing goes back to keywords only")
     sub.add_parser("mcp", help="run the MCP server (stdio)")
     h = sub.add_parser("hook", help="Claude Code hook entry point"); h.add_argument("event", choices=["session-start", "prompt", "stop", "post-tool", "failure"])
     i = sub.add_parser("install", help="register hooks + MCP in Claude Code"); i.add_argument("--yes", action="store_true")
@@ -228,6 +231,17 @@ def main(argv=None) -> int:
         except OSError as e:  # Windows reports a busy port as PermissionError (WinError 10013)
             _out(f"error: port {a.port} is already in use or not allowed ({e.strerror or e}). Try `astroglia ui --port 8766`."); return 1
         return 0
+    if a.cmd == "semantic":
+        from . import semantic
+        if a.enable:
+            res = semantic.enable(cfg)
+        elif a.disable:
+            res = semantic.disable(cfg)
+        else:
+            res = {"enabled": semantic.enabled(cfg), "model": semantic.MODEL, "path": str(semantic.model_dir(cfg))}
+        _out(res, lambda o: o.get("error") or ("Meaning-based matching: ON (" + o.get("path", "") + "). Model read from disk, no network."
+                                               if o["enabled"] else "Meaning-based matching: off. Turn on with: astroglia semantic --enable"))
+        return 0 if not res.get("error") else 1
     if a.cmd == "mcp":
         from . import mcp_server
         mcp_server.main(); return 0
