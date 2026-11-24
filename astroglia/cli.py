@@ -142,6 +142,8 @@ def main(argv=None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("sync", help="scan capabilities and verify memories (incremental)")
     sub.add_parser("status", help="counts and recent events")
+    pb = sub.add_parser("probe", help="ask local (stdio) MCP servers for their tool list, so routing knows what they do")
+    pb.add_argument("--force", action="store_true"); pb.add_argument("--server")
     vl = sub.add_parser("value", help="what Astroglia served (measured) and saved (estimated)")
     vl.add_argument("--days", type=int)
     sub.add_parser("doctor", help="diagnose installation")
@@ -217,6 +219,10 @@ def main(argv=None) -> int:
         elif a.cmd == "status":
             _out({"db": str(cfg.db_path), "last_capability_sync": st.kv_get("last_capability_sync"), **st.stats(),
                   "recent": [{k: e[k] for k in ("ts", "kind")} for e in st.events(10)]})
+        elif a.cmd == "probe":
+            from . import probe
+            servers = json.loads(cfg.claude_json.read_text(encoding="utf-8")).get("mcpServers", {}) if cfg.claude_json.exists() else {}
+            _out(probe.probe(st, servers, force=a.force, only=a.server))
         elif a.cmd == "value":
             from . import metrics
             _out(metrics.value(st, a.days))

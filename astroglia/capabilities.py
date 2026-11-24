@@ -222,6 +222,15 @@ def sync(store: Store, claude_dir: Path, claude_json: Path, project_roots: list[
          redundancy_threshold: float = 0.35) -> dict:
     """Incremental: upsert what changed, flag vanished capabilities as 'missing' (never delete)."""
     caps, edges = discover(claude_dir, claude_json, project_roots)
+    from .probe import _signature
+    for c in caps:  # keep what `astroglia probe` learned while the server's command line is unchanged
+        old = store.get(c["id"]) if c["kind"] == "mcp_server" else None
+        pr = old and old["meta"].get("probe")
+        if pr and pr.get("count") is not None and pr.get("signature") == _signature(c["meta"]):
+            c["summary"] = c["summary"] + " Tools (" + old["summary"].split(" Tools (", 1)[1] if " Tools (" in old["summary"] else c["summary"]
+            c["body"], c["meta"]["probe"] = old["body"], pr
+        elif pr and pr.get("signature") == _signature(c["meta"]):
+            c["meta"]["probe"] = pr  # remember failures too, so they are not retried until the server changes
     report = store.reconcile(caps, SOURCE, edges, op="scan")
 
     # Redundancy: lexical overlap of descriptions between capabilities that do "work"

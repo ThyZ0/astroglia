@@ -55,7 +55,7 @@ astroglia install          # dry run: prints exactly what will change
 astroglia install --yes
 ```
 
-`astroglia doctor` checks either setup.
+`astroglia doctor` checks either setup. Optional: `astroglia probe` asks your local MCP servers for their tool list, so routing knows what each one does (it starts them once, like Claude Code does).
 
 Restart Claude Code. Each session then starts with a short manifest. This one is the real output on the demo dataset, opened in `acme-shop`:
 
@@ -109,7 +109,7 @@ Routing on one real install (74 capabilities). `bench/local-tasks.json` (22 task
 | Astroglia 0.8 | 0.82 | 0.86 | 0.40 | 0.53 | 0.46 |
 | + everyday synonyms and known-service descriptions (0.9) | **0.86** | **0.91** | **0.80** | **0.93** | **0.80** |
 
-**Blind check** (`bench/blind-tasks.json`, 15 tasks written after 0.9 and run once, never tuned against): hit@1 **0.67**, hit@3 0.67, recall 0.70, against 0.60 hit@1 for plain BM25. This is the honest figure for unseen phrasing. Its misses are mostly MCP servers known only by their command line (e.g. Cortex for "who calls this function"), which is the next fix.
+**Blind check** (`bench/blind-tasks.json`, 15 tasks written after 0.9 and run once, never tuned against): hit@1 **0.67**, hit@3 0.67, recall 0.70, against 0.60 hit@1 for plain BM25. This is the honest figure for unseen phrasing. Its misses were mostly MCP servers known only by their command line (e.g. Cortex for "who calls this function"). `astroglia probe` (asks local servers for their tool list) raised it to hit@1 **0.80**, recall 0.77; this second figure is no longer blind.
 
 The holdout exposed what the first benchmark hid: MCP servers had no description (their configuration only holds a command line), and everyday words ("todo", "workbook", "mail") missed the words tools use. Caveat: the 0.9 glossaries were written after reading the holdout failures, so the holdout is no longer blind; a new blind set is the next check. On these tasks plain BM25 over the same enriched index scores the same hit@1: Astroglia's added value is fewer, explained results (4 instead of every match), staleness and memory, not ranking alone.
 
