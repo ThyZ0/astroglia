@@ -93,14 +93,18 @@ def test_history_and_restore(env):
     assert s.get(e["id"]) is not None
 
 
-def test_feedback_changes_ranking_signal(env):
+def test_feedback_counts_for_similar_tasks_only(env):
     sync(env)
-    before = router.route(env["store"], env["cfg"], "review python code")["selected"][0]
-    router.feedback(env["store"], [before["id"]], useful=False)
-    router.feedback(env["store"], [before["id"]], useful=False)
-    after = router.route(env["store"], env["cfg"], "review python code")["selected"][0]
-    assert after["why"]["success"] < before["why"]["success"]
-
+    first = router.route(env["store"], env["cfg"], "review python code")["selected"][0]
+    router.feedback(env["store"], [first["id"]], useful=False)                 # task taken from that routing
+    again = router.route(env["store"], env["cfg"], "review python code")["selected"]
+    same = next(x for x in again if x["id"] == first["id"])
+    assert same["why"]["success"] < first["why"]["success"]                   # same task: penalised
+    other = router.route(env["store"], env["cfg"], "python code style and test coverage before merging")["selected"]
+    o = next(x for x in other if x["id"] == first["id"])
+    assert o["why"]["success"] > same["why"]["success"]                        # different task: barely affected
+    ev = env["store"].events(1, kind="feedback")[0]["payload"]
+    assert ev["task"] == "review python code"
 
 def test_budget_is_respected(env):
     sync(env)

@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 - Context Monitor and Dashboard show memory served at the file.
 ### Changed
 - The consolidation reminder lists full paths of edited files.
+- Feedback is contextual: "not useful" counts for similar tasks only (weighted by term overlap with the task it was given for; the task is taken from the routing that returned the resource). Before, one negative rating penalised a skill for every task: a rating given while integrating Cortex pushed `study-quiz` below `study-cards` for "quiz me on chapter 3". Local hit@1 back to 0.86.
 
 ## [0.8.0] - 2026-11-24
 ### Added

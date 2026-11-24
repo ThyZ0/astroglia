@@ -217,7 +217,7 @@ def api(store: Store, cfg: config.Config, method: str, path: str, q: dict, body:
         if path == "/api/revalidate":
             return experiences.revalidate(store, str(body.get("id")))
         if path == "/api/feedback":
-            return router.feedback(store, list(body.get("ids", [])), bool(body.get("useful")))
+            return router.feedback(store, list(body.get("ids", [])), bool(body.get("useful")), body.get("task"))
         if path == "/api/sync":
             rep = providers.sync_all(store, cfg)
             return {k: {kk: (vv if isinstance(vv, int) else len(vv)) for kk, vv in v.items()} if isinstance(v, dict) else v

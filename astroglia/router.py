@@ -6,6 +6,7 @@ that drops redundant capabilities and respects a token budget. No LLM call.
 """
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timezone
 
@@ -45,6 +46,7 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
     qterms = set(terms(task))
     ftask = fold(task)
     cands = []
+    ctx_success = contextual_success(store, task, {nid for nid, _ in hits})
     for nid, s in hits:
         n = store.get(nid)
         if n is None or n["status"] in SKIP_STATUS:
@@ -60,7 +62,7 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
         # Full name only: name fragments ("test", "claude") proved too generic on the routing bench.
         named = 1.0 if re.search(rf"(?<![\w-]){re.escape(fold(n['title']))}(?![\w-])", ftask) else 0.0
         fresh = 0.5 ** (_age_days(n["verified"]) / cfg.half_life_days)
-        succ = (n["successes"] + 1) / (n["uses"] + 2)
+        succ = ctx_success.get(nid, 0.5)  # neutral prior when there is no feedback for this resource
         proj = 1.0 if project and n["project"] and project.lower() in n["project"].lower() else 0.0
         parts = {"relevance": rel, "named": named, "confidence": n["confidence"], "freshness": fresh, "success": succ, "project": proj}
         score = sum(w.get(k, 0) * v for k, v in parts.items())
@@ -118,9 +120,32 @@ def route(store: Store, cfg: Config, task: str, project: str | None = None, budg
     return result
 
 
-def feedback(store: Store, ids: list[str], useful: bool) -> dict:
-    """Adaptation v0: record whether routed resources helped. Reversible (counters only, logged)."""
+def feedback(store: Store, ids: list[str], useful: bool, task: str | None = None) -> dict:
+    """Record whether routed resources helped *for a task*. Without `task`, the last routing that returned
+    these ids gives it. Reversible: counters + logged events."""
+    if not task:
+        for e in store.events(200, kind="route"):
+            if set(ids) & set(e["payload"].get("selected", [])):
+                task = e["payload"].get("task")
+                break
     for i in ids:
         store.bump(i, uses=1, successes=1 if useful else 0)
-    store.log("feedback", ids=ids, useful=useful)
-    return {"recorded": len(ids)}
+    store.log("feedback", ids=ids, useful=useful, task=task)
+    return {"recorded": len(ids), "task": task}
+
+
+def contextual_success(store: Store, task: str, ids: set[str]) -> dict[str, float]:
+    """Feedback only counts for similar tasks: success = (1 + sum w*useful) / (2 + sum w), w = term overlap
+    between this task and the task the feedback was given for (0.2 when that task is unknown)."""
+    from .capabilities import similarity
+    acc: dict[str, list[float]] = {}
+    for kind, raw in store.db.execute("SELECT kind, payload FROM events WHERE kind='feedback'").fetchall():
+        p = json.loads(raw)
+        hit = ids & set(p.get("ids", []))
+        if not hit:
+            continue
+        w = similarity(task, p["task"]) if p.get("task") else 0.2
+        for i in hit:
+            a = acc.setdefault(i, [0.0, 0.0])
+            a[0] += w * bool(p.get("useful")); a[1] += w
+    return {i: (1 + a[0]) / (2 + a[1]) for i, a in acc.items()}

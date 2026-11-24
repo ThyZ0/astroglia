@@ -64,9 +64,10 @@ def build(cfg: config.Config | None = None) -> MCPServer:
             return {"error": str(e)}
 
     @mcp.tool(name="feedback")
-    async def tool_feedback(ids: list[str], useful: bool) -> dict:
-        """Report whether routed entries were actually useful. Improves future ranking."""
-        return router.feedback(store, ids, useful)
+    async def tool_feedback(ids: list[str], useful: bool, task: str | None = None) -> dict:
+        """Report whether routed entries were actually useful for the task. It adjusts ranking for similar
+        tasks only (task defaults to the routing that returned these ids)."""
+        return router.feedback(store, ids, useful, task)
 
     @mcp.tool(name="revalidate")
     async def tool_revalidate(id: str) -> dict:
