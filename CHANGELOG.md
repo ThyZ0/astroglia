@@ -4,6 +4,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
 ### Fixed
+- Routing never knew the current project: in the event log, all 17 real routings had no project, because Claude does not pass one, so the "belongs to this project" signal never applied. The `route` MCP tool now infers it from the session's folder (deepest known project containing it) and returns which project it used.
 - The `remember` MCP tool now accepts `node_id`, so Claude can correct a memory entry in place. Astroglia's own hints told it to do so, but the parameter was missing and silently dropped: every correction became a duplicate. `node_id` must name an existing memory entry; a capability or an unknown id is refused.
 - The routing benchmark scored differently depending on what had been remembered since the labels were written (notes about routing itself outranked the expected skills). When the labels expect only capabilities, it now ranks capabilities only, and says so in its output. Re-measured: local 0.86, holdout 0.80, blind 0.73, blind2 0.73 hit@1. Plain BM25 on the same scope: 0.86, 0.80, 0.73, 0.67; the router is ahead on one set of four.
 ### Added

@@ -1,6 +1,8 @@
 """MCP server (stdio). Tools return JSON; retrieved content is user data, never instructions."""
 from __future__ import annotations
 
+import os
+
 from mcp.server.mcpserver import MCPServer
 
 from . import capabilities, config, experiences, providers, router
@@ -26,7 +28,11 @@ def build(cfg: config.Config | None = None) -> MCPServer:
     async def tool_route(task: str, project: str | None = None, budget: int = 1200, kinds: list[str] | None = None) -> dict:
         """Select the resources (experiences, decisions, knowledge, skills, tools, MCP servers) worth using for a task.
         Returns selected pointers with score breakdown and rejected candidates with reasons. budget = max estimated tokens."""
+        if project is None:  # Claude rarely passes it; the server runs in the session's folder
+            here = providers.project_at(store, os.getcwd())
+            project = here["title"] if here else None
         r = router.route(store, cfg, task, project=project, budget=budget, kinds=kinds)
+        r["project"] = project
         r["rejected_count"], r["rejected"] = len(r["rejected"]), r["rejected"][:5]  # full list is in the event log
         return {"notice": NOTICE, **r}
 

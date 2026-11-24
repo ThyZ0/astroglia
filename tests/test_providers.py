@@ -143,3 +143,14 @@ def test_indexing_tools_are_bridged_to_the_projects_they_index(env, monkeypatch)
     env["store"].upsert({"id": "skill:x:graphify", "kind": "skill", "title": "graphify", "source": "scan:claude-code"})
     providers.sync(env["store"], env["cfg"])
     assert any(e["src"] == "skill:x:graphify" and e["type"] == "used_in" for e in env["store"].edges("project:planner"))
+
+
+def test_project_at_picks_the_deepest_project(env, tmp_path):
+    outer, inner = tmp_path / "work", tmp_path / "work" / "app"
+    (inner / "src").mkdir(parents=True)
+    for name, root in (("work", outer), ("app", inner)):
+        env["store"].upsert({"id": f"project:{name}", "kind": "project", "title": name, "summary": name,
+                             "source": "scan:projects", "meta": {"root": str(root)}})
+    assert providers.project_at(env["store"], str(inner / "src"))["title"] == "app"
+    assert providers.project_at(env["store"], str(outer))["title"] == "work"
+    assert providers.project_at(env["store"], str(tmp_path / "elsewhere")) is None

@@ -261,18 +261,24 @@ def sync_all(store: Store, cfg: Config, extra_roots: list[str] = (), brief_budge
     return {"capabilities": caps, **prov, "stale": ver["stale"]}
 
 
+def project_at(store: Store, path: str | None) -> dict | None:
+    """The known project whose root contains `path` (the deepest one when projects are nested), or None."""
+    if not path:
+        return None
+    target = str(Path(path).resolve()).lower()
+    best, best_len = None, -1
+    for n in store.nodes(kind="project"):
+        root = str(n["meta"].get("root") or "").lower().rstrip("\\/")
+        if root and (target == root or target.startswith(root + ("\\" if "\\" in root else "/"))) and len(root) > best_len:
+            best, best_len = n, len(root)
+    return best
+
+
 def project_card(store: Store, ref: str) -> dict | None:
     """What Astroglia knows about a project (by name or by a path inside it): providers, and every
     remembered entry with its validity. Stale entries list the changed files, so only those parts
     need re-analysis."""
-    p = store.get(f"project:{ref}")
-    if p is None:
-        target = str(Path(ref).resolve()).lower() if ref else ""
-        for n in store.nodes(kind="project"):
-            root = str(n["meta"].get("root") or "").lower()
-            if root and (target == root or target.startswith(root.rstrip("\\/") + ("\\" if "\\" in root else "/"))):
-                p = n
-                break
+    p = store.get(f"project:{ref}") or project_at(store, ref)
     if p is None:
         return None
     entries = {"active": [], "stale": []}
