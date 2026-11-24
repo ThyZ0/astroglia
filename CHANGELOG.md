@@ -2,6 +2,10 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
+## [Unreleased]
+### Added
+- Dashboard and Context Monitor show déjà-vu hits; `astroglia value` counts them (`dejavu_served`).
+
 ## [0.10.0] - 2026-11-24
 ### Added
 - **Déjà vu**: when a shell command fails (PostToolUseFailure on Bash/PowerShell), Astroglia checks whether the same error was already solved and remembered, and tells Claude with the matched terms. Only the lines that state the error are analysed, and it speaks only on a strong match. Replayed on 35 distinct real errors from this install's transcripts: 0 false matches (4 of 10 with the first version, which read the whole output). The consolidation reminder now quotes the errors met in the session, so the saved fix carries the text déjà vu recognises.

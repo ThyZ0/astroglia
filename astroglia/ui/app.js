@@ -175,6 +175,7 @@ function valuePanel(v) {
   return h("div.card", {}, h("h2", {}, "What Astroglia did, last 30 days"),
     h("div.value-grid", {},
       row(m.briefs_served, "project briefs served", "Each brief replaces re-reading the project's manifests and README"),
+      row(m.dejavu_served, "déjà vu on errors", "Remembered fixes offered when a command failed with an error already solved"),
       row(m.anchored_served, "served at the file", "Remembered entries delivered when Claude read or edited the file they are about, without any query"),
       row(m.memory_served, "memory entries served", "Experiences, decisions and knowledge returned by routing"),
       row(m.stale_warnings, "stale warnings", "Times Astroglia said an entry's source files changed since it was recorded"),
@@ -225,9 +226,9 @@ views.context = async () => {
       h("div.card", {}, h("h2", {}, "What Claude was served"), served)));
   fill(history_, ...(await routeHistory()));
   const sv = await api("/api/events?kind=served&limit=30");
-  const how = { wake: "at session start", get: "read with get", project: "project card", read: "when Claude read a file", edit: "when Claude edited a file" };
+  const how = { wake: "at session start", get: "read with get", project: "project card", read: "when Claude read a file", edit: "when Claude edited a file", failure: "when a command failed (déjà vu)" };
   fill(served, sv.length ? sv.map((e) => h("div.event", {}, h("span.muted", {}, fmtDate(e.ts)), h("span", {}, how[e.payload.via] || e.payload.via),
-    h("span", {}, e.payload.kind === "project_card" ? `${short(e.payload.id)}: ${e.payload.valid} valid, ${e.payload.stale} stale` : e.payload.kind === "anchor" ? `${e.payload.count} entr${e.payload.count > 1 ? "ies" : "y"} about ${e.payload.file}` : short(e.payload.id))))
+    h("span", {}, e.payload.kind === "project_card" ? `${short(e.payload.id)}: ${e.payload.valid} valid, ${e.payload.stale} stale` : e.payload.kind === "anchor" ? `${e.payload.count} entr${e.payload.count > 1 ? "ies" : "y"} about ${e.payload.file}` : e.payload.kind === "dejavu" ? `remembered fix: ${short(e.payload.id)}` : short(e.payload.id))))
     : [h("p.empty", {}, "Nothing served yet. Briefs are served when a session starts inside a known project.")]);
 };
 

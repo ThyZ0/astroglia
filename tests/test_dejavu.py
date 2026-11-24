@@ -66,3 +66,10 @@ def test_installer_adds_the_failure_hook_for_shell_tools_only(env, monkeypatch):
     s = json.loads((env["claude"] / "settings.json").read_text(encoding="utf-8"))
     g = s["hooks"]["PostToolUseFailure"][0]
     assert g["matcher"] == "Bash|PowerShell" and "hook failure" in g["hooks"][0]["command"]
+
+
+def test_dejavu_counted_in_value_report(env):
+    from astroglia import metrics
+    experiences.remember(env["store"], "ECONNREFUSED on redis", "Redis was not started: ECONNREFUSED 6379, run docker compose up redis.")
+    assert fail(env, "Exit code 1\nError: connect ECONNREFUSED 127.0.0.1:6379 (redis)")
+    assert metrics.value(env["store"])["measured"]["dejavu_served"] == 1
