@@ -115,23 +115,48 @@ const xAt = (poly, y) => {  // x of a polyline at height y (linear interpolation
 };
 const yAt = (poly, x) => xAt(poly.map(([a, b]) => [b, a]), x);
 
-function atlasLayout(nodes) {
+const SPIRAL_FROM = 120;
+  // clusters bigger than this use the sunflower layout
+const REGION_CODES = [null, "frontal", "parietal", "occipital", "temporal", "cerebellum"];
+let regionRaster = null;  // region of every 2x2 cell of the plate, computed once (geometry tests are slow)
+function regionMap() {
+  if (regionRaster) return regionRaster;
   const probe = document.createElement("canvas").getContext("2d");
-  const paths = { cerebrum: new Path2D(BRAIN.cerebrum), cerebellum: new Path2D(BRAIN.cerebellum) };
-  const inside = (p, x, y) => probe.isPointInPath(paths[p], x, y);
+  const cereb = new Path2D(BRAIN.cerebrum), cbl = new Path2D(BRAIN.cerebellum);
+  const cols = W0 / 2, rows = H0 / 2, m = new Uint8Array(cols * rows);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const x = i * 2 + 1, y = j * 2 + 1;
+    let r = null;
+    if (probe.isPointInPath(cbl, x, y)) r = "cerebellum";
+    else if (probe.isPointInPath(cereb, x, y)) {
+      if (y > yAt(BRAIN.sylvian, x) && x > 270 && x < 700) r = "temporal";
+      else if (x < xAt(BRAIN.central, y)) r = "frontal";
+      else if (x > xAt(BRAIN.parieto, y)) r = "occipital";
+      else r = "parietal";
+    }
+    m[j * cols + i] = REGION_CODES.indexOf(r);
+  }
+  return (regionRaster = { m, cols, rows });
+}
+
+function atlasLayout(nodes) {
+  const R = regionMap();
   const regionAt = (x, y) => {
-    if (inside("cerebellum", x, y)) return "cerebellum";
-    if (!inside("cerebrum", x, y)) return null;
-    if (y > yAt(BRAIN.sylvian, x) && x > 270 && x < 700) return "temporal";
-    if (x < xAt(BRAIN.central, y)) return "frontal";
-    if (x > xAt(BRAIN.parieto, y)) return "occipital";
-    return "parietal";
+    const i = x >> 1, j = y >> 1;
+    return i < 0 || j < 0 || i >= R.cols || j >= R.rows ? null : REGION_CODES[R.m[j * R.cols + i]];
+  };
+  const grid = new Map(), CELL = 12;  // spatial hash of placed stars: nearest-neighbour checks stay local
+  const addPt = (p) => { const k = ((p[0] / CELL) | 0) + "," + ((p[1] / CELL) | 0); (grid.get(k) || grid.set(k, []).get(k)).push(p); };
+  const nearest = (x, y) => {
+    let d = 1e9; const ci = (x / CELL) | 0, cj = (y / CELL) | 0;
+    for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (const q of grid.get((ci + a) + "," + (cj + b)) || []) d = Math.min(d, Math.hypot(q[0] - x, q[1] - y));
+    return d;
   };
   const nearTitle = (x, y) => Object.values(REGION).some((r) => Math.abs(x - r.at[0]) < 62 && y > r.at[1] - 16 && y < r.at[1] + 18);
   const deep = (reg, x, y, m) => [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([dx, dy]) => regionAt(x + dx, y + dy) === reg);
   const groups = new Map();
   for (const n of nodes) { const k = atlasCluster(n); (groups.get(k) || groups.set(k, []).get(k)).push(n); }
-  const pos = new Map(), centers = new Map(), placed = [];
+  const pos = new Map(), centers = new Map();
   const keys = [...groups.keys()].sort((a, b) => groups.get(b).length - groups.get(a).length);
   for (const key of keys) {
     const reg = key.split(":")[0], members = groups.get(key), r = rng(hash(key));
@@ -146,22 +171,38 @@ function atlasLayout(nodes) {
     best = best || REGION[reg].at;
     centers.set(key, best);
     const hub = members.find((m) => m.kind === "plugin" || m.kind === "project");
+    if (members.length > SPIRAL_FROM) {  // large cluster: sunflower spiral, even spacing in linear time
+      const rest = members.filter((m) => m !== hub).sort((a, b) => (a.id < b.id ? -1 : 1));
+      if (hub) { pos.set(hub.id, best); addPt(best); }
+      const step = 2.6;  // world units between neighbouring seeds
+      rest.forEach((m, i) => {
+        let rad = step * Math.sqrt(i + 4), a = (i + 4) * 2.39996323, x, y;  // golden angle
+        for (let shrink = 0; shrink < 6; shrink++) {
+          x = best[0] + Math.cos(a) * rad; y = best[1] + Math.sin(a) * rad;
+          if (regionAt(x, y) === reg) break;
+          a += 0.9; rad *= 0.86;  // outside the lobe: turn and pull inwards
+        }
+        pos.set(m.id, [x, y]); addPt([x, y]);
+      });
+      continue;
+    }
     for (const m of members) {
-      if (m === hub) { pos.set(m.id, best); placed.push(best); continue; }
+      if (m === hub) { pos.set(m.id, best); addPt(best); continue; }
       const q = rng(hash(m.id));
       let p = null, pd = -1;
       for (let i = 0; i < 30; i++) {
         const a = q() * Math.PI * 2, rad = 8 + Math.sqrt(q()) * spread;
         const x = best[0] + Math.cos(a) * rad, y = best[1] + Math.sin(a) * rad;
         if (regionAt(x, y) !== reg || nearTitle(x, y)) continue;
-        const d = Math.min(1e9, ...placed.slice(-400).map((s) => Math.hypot(s[0] - x, s[1] - y)));
+        const d = nearest(x, y);
         if (d > pd) { p = [x, y]; pd = d; }
       }
       p = p || [best[0] + (q() - 0.5) * 20, best[1] + (q() - 0.5) * 20];
-      pos.set(m.id, p); placed.push(p);
+      pos.set(m.id, p); addPt(p);
     }
   }
-  return { pos, centers, groups };
+  const cluster = new Map(nodes.map((n) => [n.id, atlasCluster(n)]));  // per-frame work reads these, never recomputes
+  return { pos, centers, groups, cluster };
 }
 
 views.galaxy = async () => {
@@ -183,7 +224,7 @@ views.galaxy = async () => {
     Object.entries(FAMILY).map(([f, c]) => {
       const dot = h("span.swatch"); dot.style.background = c;
       const b = h("button.legend-item", { type: "button", "aria-pressed": "true", onclick: () => {
-        hidden.has(f) ? hidden.delete(f) : hidden.add(f); b.setAttribute("aria-pressed", String(!hidden.has(f))); redraw(); } }, dot, FAMILY_LABEL[f]);
+        hidden.has(f) ? hidden.delete(f) : hidden.add(f); b.setAttribute("aria-pressed", String(!hidden.has(f))); invalidate(); } }, dot, FAMILY_LABEL[f]);
       return b;
     }),
     h("div.small.muted", {}, "◯ plugin or project · ◇ MCP server · · other · dashed ring = stale"),
@@ -206,7 +247,8 @@ views.galaxy = async () => {
   api("/api/voids").then((vs) => { for (const v of vs) if (v.items.length) voidSel.append(h("option", { value: v.key }, `${v.label} (${v.items.length})`));
     voidSel.voids = vs; if (params().voids) { voidSel.value = params().voids; voidSel.dispatchEvent(new Event("input")); } });
 
-  const ctx = canvas.getContext("2d");
+  const screenCtx = canvas.getContext("2d");
+  let ctx = screenCtx;  // points at the cached layer while it is being rendered
   let L = atlasLayout(g.nodes), W = 0, H = 0, dpr = 1;
   const view = { x: 0, y: 0, k: 1 };
   let hover = null, selected = null, highlight = null, focusSet = null, path = null, active = null, proj = [];
@@ -218,7 +260,7 @@ views.galaxy = async () => {
   const S = ([x, y]) => [view.x + x * view.k, view.y + y * view.k];
   const resize = () => {
     dpr = devicePixelRatio || 1; const first = !W; W = canvas.clientWidth; H = canvas.clientHeight;
-    canvas.width = W * dpr; canvas.height = H * dpr; if (first) fit(); redraw();
+    canvas.width = W * dpr; canvas.height = H * dpr; if (first) fit(); invalidate();
   };
   const P = { cerebrum: new Path2D(BRAIN.cerebrum), cerebellum: new Path2D(BRAIN.cerebellum), stem: new Path2D(BRAIN.stem),
     folds: BRAIN.folds.map((d) => new Path2D(d)) };
@@ -272,25 +314,60 @@ views.galaxy = async () => {
     return [mx - dy / len * len * bend, my + dx / len * len * bend];
   }
 
+  // Layer cache: plate, constellation lines and plain stars change only with zoom, selection, filters or data.
+  // They are rendered once into an off-screen canvas with a margin, and panning just moves that image.
+  // Measured at 20k entries (headless, software rendering): stars alone cost 44 ms per frame when redrawn.
+  const layer = { canvas: document.createElement("canvas"), ver: -1, ox: 0, oy: 0, w: 0, h: 0 };
+  let staticVer = 0, BW = 0, BH = 0;
+  const MARGIN = 0.5;  // fraction of the viewport kept around it in the layer
+  const invalidate = () => { staticVer++; redraw(); };
   function draw(t) {
+    const MX = Math.round(W * MARGIN), MY = Math.round(H * MARGIN);
+    if (layer.ver !== staticVer || Math.abs(view.x - layer.ox) > MX || Math.abs(view.y - layer.oy) > MY || layer.w !== W || layer.h !== H) {
+      const c = layer.canvas; c.width = (W + 2 * MX) * dpr; c.height = (H + 2 * MY) * dpr;
+      ctx = c.getContext("2d"); view.x += MX; view.y += MY; BW = W + 2 * MX; BH = H + 2 * MY;
+      try { pass(t, "static"); } finally { view.x -= MX; view.y -= MY; ctx = screenCtx; }
+      Object.assign(layer, { ver: staticVer, ox: view.x, oy: view.y, w: W, h: H });
+    }
+    BW = W; BH = H;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    plate();
+    ctx.drawImage(layer.canvas, view.x - layer.ox - MX, view.y - layer.oy - MY, W + 2 * MX, H + 2 * MY);
+    pass(t, "dynamic");
+  }
+
+  function pass(t, mode) {
+    const statik = mode === "static";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (statik) plate();
     const focus = selected || hover;
     active = path ? path.nodes : selected ? focusSet : highlight;
     const SP = new Map(g.nodes.map((n) => [n.id, S(L.pos.get(n.id))]));
     const labels = [], zoom = view.k / Math.min(W / (W0 + 60), H / (H0 + 120));
-    // relations: constellation lines (short, within a cluster) always; others only around the selection
+    // crowded plates get smaller stars (readable at 20k entries); a typical install keeps full size
+    const density = Math.min(1, Math.max(0.35, Math.sqrt(600 / Math.max(1, g.nodes.length))) * Math.max(1, Math.sqrt(zoom) * 0.8));
+    // relations: constellation lines (short, within a cluster) always; others only around the selection.
+    // Plain constellation lines are batched into one path per (pattern, dim): one stroke instead of thousands.
+    const batches = new Map();
     for (const e of g.edges) {
       const na = g.byId.get(e.src), nb = g.byId.get(e.dst);
       if (!visible(na) || !visible(nb)) continue;
       const a = SP.get(e.src), b = SP.get(e.dst); if (!a || !b) continue;
       const onPath = path && path.edges.has(ekey(e.src, e.dst));
       const on = !path && focus && (e.src === focus.id || e.dst === focus.id);
-      const local = atlasCluster(na) === atlasCluster(nb);
+      const local = L.cluster.get(e.src) === L.cluster.get(e.dst);
       if (!onPath && !on && !local) continue;
       const dim = active && !onPath && !on && !(active.has(e.src) && active.has(e.dst));
       const st = edgeStyle(e.type);
+      if (!on && !onPath) {
+        if (!statik) continue;
+        if ((a[0] < -50 && b[0] < -50) || (a[0] > BW + 50 && b[0] > BW + 50) || (a[1] < -50 && b[1] < -50) || (a[1] > BH + 50 && b[1] > BH + 50)) continue;
+        const key = st.dash.join(",") + "|" + (dim ? 1 : 0);
+        const batch = batches.get(key) || batches.set(key, { p: new Path2D(), dash: st.dash, dim }).get(key);
+        batch.p.moveTo(a[0], a[1]); batch.p.lineTo(b[0], b[1]);
+        continue;
+      }
+      if (statik) continue;
       ctx.setLineDash(on || onPath ? [] : st.dash.map((d) => d * 0.8));
       ctx.strokeStyle = onPath ? GOLD : on ? "rgba(232, 196, 106, 0.85)" : INK + (dim ? "0.04)" : "0.2)");
       ctx.lineWidth = onPath ? 2 : on ? 1.3 : 0.8;
@@ -306,7 +383,23 @@ views.galaxy = async () => {
         if (labels.length < 40) labels.push(c ? [(a[0] + 2 * c[0] + b[0]) / 4, (a[1] + 2 * c[1] + b[1]) / 4, st.label] : [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, st.label]);
       }
     }
+    for (const { p: bp, dash, dim } of batches.values()) {
+      ctx.setLineDash(dash.map((d) => d * 0.8)); ctx.strokeStyle = INK + (dim ? "0.04)" : "0.2)"); ctx.lineWidth = 0.8; ctx.stroke(bp);
+    }
     ctx.setLineDash([]);
+    const plain = (n) => n.kind !== "plugin" && n.kind !== "project" && n.kind !== "mcp_server" && n.status !== "stale";
+    if (statik) {  // plain stars, into the cached layer
+      for (const n of g.nodes) {
+        if (!visible(n) || !plain(n)) continue;
+        const p = SP.get(n.id);
+        if (p[0] < -20 || p[1] < -20 || p[0] > BW + 20 || p[1] > BH + 20) continue;
+        const r = (MEMORY.has(n.kind) ? 2.6 : 2.1) * (1 + Math.log1p(n.uses) * 0.25) * Math.min(1.8, Math.max(0.8, Math.sqrt(zoom))) * density;
+        ctx.globalAlpha = active && !active.has(n.id) ? 0.18 : 1;
+        ctx.fillStyle = FAMILY[familyOf(n.kind)]; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 6.2832); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
     // core and its real-event rings
     const core = S(CORE);
     ctx.strokeStyle = INK + "0.6)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(core[0], core[1], 5, 0, 7); ctx.stroke();
@@ -321,11 +414,12 @@ views.galaxy = async () => {
       if (!visible(n)) continue;
       const p = SP.get(n.id); proj.push([n, p]);
       if (p[0] < -20 || p[1] < -20 || p[0] > W + 20 || p[1] > H + 20) continue;
+      if (plain(n) && !births.has(n.id) && !flares.has(n.id) && !(focus && n.id === focus.id)) continue;  // already in the layer
       const color = FAMILY[familyOf(n.kind)];
       const born = births.get(n.id), grow = born ? Math.min(1, (t - born) / 1400) : 1;
       const fl = flares.get(n.id), flare = fl ? Math.max(0, 1 - (t - fl) / 2200) : 0;
       const hub = n.kind === "plugin" || n.kind === "project";
-      let r = (hub ? 3.6 : MEMORY.has(n.kind) ? 2.6 : 2.1) * (1 + Math.log1p(n.uses) * 0.25) * Math.min(1.8, Math.max(0.8, Math.sqrt(zoom)));
+      let r = (hub ? 3.6 : MEMORY.has(n.kind) ? 2.6 : 2.1) * (1 + Math.log1p(n.uses) * 0.25) * Math.min(1.8, Math.max(0.8, Math.sqrt(zoom))) * density;
       r *= grow;
       const dim = active && !active.has(n.id);
       ctx.globalAlpha = dim ? 0.18 : 1;
@@ -343,6 +437,7 @@ views.galaxy = async () => {
       if (focus && n.id === focus.id) { ctx.strokeStyle = GOLD; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(p[0], p[1], r + 7, 0, 7); ctx.stroke(); }
       ctx.globalAlpha = 1;
     }
+    ctx.globalAlpha = 1;
     // labels: relation pills first, then names (hubs when zoomed out, every star when zoomed in), never overlapping
     const boxes = [...titleBoxes], overlaps = (b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
     ctx.font = "10.5px 'Segoe UI', system-ui, sans-serif"; ctx.textAlign = "center";
@@ -351,8 +446,11 @@ views.galaxy = async () => {
       if (overlaps(box)) continue; boxes.push(box);
       ctx.fillStyle = "rgba(9, 14, 26, 0.92)"; ctx.fillRect(box[0], box[1], w, 15); ctx.fillStyle = "#d9c38f"; ctx.fillText(text, x, y + 3);
     }
+    // zoomed out, only the largest constellations are named; the rest appear as you zoom in
+    const bigHubs = new Set([...L.groups.values()].filter((m) => m.length > 0).sort((a, b) => b.length - a.length)
+      .slice(0, Math.round(24 * Math.max(1, zoom))).map((m) => (m.find((x) => x.kind === "plugin" || x.kind === "project") || {}).id).filter(Boolean));
     const named = proj.filter(([n]) => (focus && n.id === focus.id) || (path && path.nodes.has(n.id)) || (selected && focusSet.has(n.id))
-      || (!active && ((n.kind === "plugin" || n.kind === "project") || zoom > 1.9)) || (highlight && highlight.has(n.id) && zoom > 1.2));
+      || (!active && ((bigHubs.has(n.id)) || zoom > 1.9)) || (highlight && highlight.has(n.id) && zoom > 1.2));
     named.sort(([a], [b]) => (focus && b.id === focus.id) - (focus && a.id === focus.id) || (b.kind === "project" || b.kind === "plugin") - (a.kind === "project" || a.kind === "plugin"));
     for (const [n, p] of named) {
       const hub = n.kind === "plugin" || n.kind === "project";
@@ -383,7 +481,7 @@ views.galaxy = async () => {
 
   // interaction: pan, zoom at cursor, select, path
   let drag = null;
-  const zoomAt = (mx, my, f) => { const k = Math.max(0.3, Math.min(8, view.k * f)); view.x = mx - (mx - view.x) * k / view.k; view.y = my - (my - view.y) * k / view.k; view.k = k; redraw(); };
+  const zoomAt = (mx, my, f) => { const k = Math.max(0.3, Math.min(8, view.k * f)); view.x = mx - (mx - view.x) * k / view.k; view.y = my - (my - view.y) * k / view.k; view.k = k; invalidate(); };
   canvas.addEventListener("pointerdown", (e) => { drag = [e.clientX, e.clientY, view.x, view.y, false]; canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener("pointermove", (e) => {
     const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -417,36 +515,36 @@ views.galaxy = async () => {
     else if (e.key === "+" || e.key === "=") { zoomAt(W / 2, H / 2, 1.2); e.preventDefault(); }
     else if (e.key === "-") { zoomAt(W / 2, H / 2, 1 / 1.2); e.preventDefault(); }
   });
-  fitBtn.addEventListener("click", () => { fit(); redraw(); });
+  fitBtn.addEventListener("click", () => { fit(); invalidate(); });
   search.addEventListener("input", () => {
     const q = search.value.trim().toLowerCase();
     highlight = q ? new Set(g.nodes.filter((n) => (n.title + " " + n.id).toLowerCase().includes(q)).map((n) => n.id)) : null;
-    voidSel.value = ""; redraw();
+    voidSel.value = ""; invalidate();
   });
   voidSel.addEventListener("input", () => {
     const v = (voidSel.voids || []).find((x) => x.key === voidSel.value);
     highlight = v ? new Set(v.items.map((i) => i.id)) : null; search.value = "";
     if (v) ticker.textContent = `Weak zone: ${v.label}: ${v.rule}`;
-    redraw();
+    invalidate();
   });
   function trace(from, to) {
     const prev = new Map([[from.id, null]]), queue = [from.id];
     while (queue.length && !prev.has(to.id)) { const cur = queue.shift(); for (const [o] of g.adj.get(cur) || []) if (!prev.has(o)) { prev.set(o, cur); queue.push(o); } }
-    if (!prev.has(to.id)) { path = null; ticker.textContent = `No path between “${from.title}” and “${to.title}”: they are not connected.`; redraw(); return; }
+    if (!prev.has(to.id)) { path = null; ticker.textContent = `No path between “${from.title}” and “${to.title}”: they are not connected.`; invalidate(); return; }
     const ids = []; for (let x = to.id; x; x = prev.get(x)) ids.unshift(x);
     path = { nodes: new Set(ids), edges: new Set(ids.slice(1).map((x, i) => ekey(ids[i], x))) };
     ticker.textContent = `Path (${ids.length - 1} step${ids.length > 2 ? "s" : ""}): ` + ids.map((x) => g.byId.get(x).title).join(" → ");
-    redraw();
+    invalidate();
   }
   function select(n) {
     selected = n || null; path = null;
-    if (!n) { side.hidden = true; focusSet = null; redraw(); return; }
+    if (!n) { side.hidden = true; focusSet = null; invalidate(); return; }
     focusSet = new Set([n.id, ...(g.adj.get(n.id) || []).map(([o]) => o)]);
     side.hidden = false;
     const panel = h("div", {});
     const expand = h("button.btn.ghost.small", { type: "button", onclick: () => {
       for (const id of [...focusSet]) for (const [o] of g.adj.get(id) || []) focusSet.add(o);
-      expand.disabled = true; expand.textContent = `${focusSet.size - 1} within 2 steps`; redraw(); } }, "Expand to 2 steps");
+      expand.disabled = true; expand.textContent = `${focusSet.size - 1} within 2 steps`; invalidate(); } }, "Expand to 2 steps");
     fill(side, h("div.row.between", {}, h("strong", {}, `${focusSet.size - 1} direct relation(s)`), h("button.btn.ghost.small", { type: "button", onclick: () => select(null) }, "Close")),
       h("div.row", {}, h("a.btn.small", { href: `#/neural?id=${encodeURIComponent(n.id)}` }, "Explore relations"), expand,
         h("button.btn.ghost.small", { type: "button", onclick: () => api("/api/reveal", { id: n.id }).then(() => toast("Opened in your file manager."), (err) => toast(err.message, true)) }, "Show source")),
@@ -455,7 +553,7 @@ views.galaxy = async () => {
     const [sx, sy] = S(L.pos.get(n.id)), room = W - Math.min(440, W * 0.42) - 60;
     if (sx > room) view.x -= sx - room * 0.6;
     if (sy < 90 || sy > H - 80) view.y += H / 2 - sy;
-    redraw();
+    invalidate();
   }
 
   // live: tail the event log; animate only what actually happened
@@ -485,6 +583,7 @@ views.galaxy = async () => {
         const before = new Set(g.nodes.map((n) => n.id));
         Object.assign(g, await loadGraph(true)); L = atlasLayout(g.nodes);
         const t = now(); for (const n of g.nodes) if (!before.has(n.id)) births.set(n.id, t);
+        staticVer++;
       }
       if (evs.length) redraw();
     } catch { ticker.textContent = "Live updates paused: Astroglia UI server not reachable."; }

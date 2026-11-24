@@ -3,6 +3,8 @@
 Format: [Keep a Changelog](https://keepachangelog.com), versions: SemVer.
 
 ## [Unreleased]
+### Performance
+- Atlas at 20,000 entries (headless Chrome, software rendering), measured: placement 4,800 ms -> 33 ms (pre-computed region raster, spatial hash, sunflower spiral for constellations over 120 stars); panning 44 -> ~80 frames/s by caching plate, constellation lines and plain stars in an off-screen layer that panning only moves; star size adapts to density and only the largest constellations are named when zoomed out. Two intermediate attempts (one batched path of 20k arcs: 24 fps; pre-drawn sprites: 17 fps) were measured slower and dropped.
 ### Added
 - **Recurring errors**: every failed command's error signature (distinctive tokens, no paths or numbers) is logged. When the same error comes back in another session and no fix was saved, Claude is told how many times and where it happened before, and asked to save the fix once solved; a saved fix still takes priority (déjà vu). Health lists recurring errors with or without a fix; `astroglia value` counts `recurring_flagged`. Measured on this install's 5 past transcripts: 19 distinct errors, none repeated across sessions yet, so its value is not demonstrated here; it costs one indexed insert per failure and stays silent until an error recurs.
 ### Changed

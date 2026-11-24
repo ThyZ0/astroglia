@@ -77,7 +77,7 @@ Scénarios de valeur (`python bench/value.py <dossier-demo>`) :
 
 La référence « sans » parcourt toute l'arborescence et lit README et manifestes une fois ; un agent plus économe lirait moins, le gain réel se situe entre les deux. Sur de tout petits projets, une fiche complète peut coûter plus que les fichiers eux-mêmes : c'est la ligne du manifeste qui fait toujours gagner.
 
-Charge (`python bench/load.py`) : routage sur 20 500 entrées en 43 ms ; vérification de fraîcheur de 500 entrées inchangées en 71 ms (989 ms avant) ; la galaxie affiche 20 000 étoiles et 40 000 relations à environ 70 images/s.
+Charge (`python bench/load.py`) : routage sur 20 500 entrées en 43 ms ; vérification de fraîcheur de 500 entrées inchangées en 71 ms (989 ms avant) ; l'Atlas place 20 000 entrées en 33 ms et se déplace à environ 80 images/s dans Chrome sans carte graphique (couche statique mise en cache).
 
 ## Cohabitation avec vos autres outils
 

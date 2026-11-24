@@ -129,7 +129,7 @@ Value scenarios (`python bench/value.py <demo-dir>`; assumptions printed with th
 
 The "without" baseline lists each project's whole tree and reads its README and manifests once; a more frugal agent would read less, so the real saving lies between the two. On tiny projects (the demo), a full brief can cost more than reading the files directly: the session-manifest line is where the saving always holds.
 
-Load (`python bench/load.py`, synthetic stores): routing over 20,500 entries in 43 ms (median); freshness check of 500 file-backed entries in 71 ms when unchanged (989 ms before the batched check); the galaxy renders 20,000 stars and 40,000 relations at about 70 frames/s in headless Chrome, with a 0.6 MB gzipped payload.
+Load (`python bench/load.py`, synthetic stores): routing over 20,500 entries in 43 ms (median); freshness check of 500 file-backed entries in 71 ms when unchanged (989 ms before the batched check); the Atlas places 20,000 entries in 33 ms (sunflower layout for large constellations, pre-computed region map) and pans at about 80 frames/s in headless Chrome with software rendering (cached static layer), with a 0.6 MB gzipped payload.
 
 `astroglia value` reports what was actually served on your machine (briefs, memory entries, stale warnings, duplicates flagged), separated from estimates.
 
