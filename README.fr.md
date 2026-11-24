@@ -7,7 +7,7 @@ Astroglia lui dit quelles ressources conviennent à la tâche, ce qu'il a déjà
 
 <p align="center">Local · aucun appel à un LLM · aucun cloud · Apache-2.0 · <a href="README.md">English</a></p>
 
-![La galaxie Astroglia : capacités dans l'hémisphère gauche, mémoire et projets dans le droit](docs/images/galaxy.png)
+![L'atlas Astroglia : un cerveau dessiné comme une planche d'anatomie et une carte du ciel ; chaque lobe contient ce que fait son équivalent réel](docs/images/galaxy.png)
 
 *Les captures utilisent le jeu de données de démonstration fourni (`python bench/demo_seed.py <dossier>`), pas un usage réel.*
 
@@ -53,7 +53,7 @@ Redémarrez Claude Code. `astroglia doctor` vérifie l'installation ; `astroglia
 | | |
 |---|---|
 | ![Context Monitor](docs/images/context-monitor.png) **Context Monitor.** Ce que le routeur a choisi ou écarté pour une tâche, avec le détail du score, et ce qui a été servi à Claude. | ![Fiche projet](docs/images/project-card.png) **Projets.** La fiche, les index et chaque connaissance mémorisée, avec les fichiers exacts qui ont changé. |
-| ![Galaxie](docs/images/galaxy-selected.png) **Galaxie.** Chaque étoile est une entrée stockée, chaque ligne une relation stockée. Sélectionnez une étoile pour voir ses relations, leur type et leur sens ; Maj+clic sur une deuxième pour tracer le chemin. Les impulsions ne suivent que de vrais événements. | ![Tableau de bord](docs/images/dashboard.png) **Tableau de bord.** Ce qu'Astroglia a réellement fait (compté) et économisé (estimé, avec la formule). |
+| ![Atlas](docs/images/galaxy-selected.png) **Atlas.** Un cerveau dessiné comme une planche d'anatomie et une carte du ciel. Chaque lobe contient ce que fait son équivalent réel : frontal = ce que Claude sait faire, temporal = ce qu'il a appris, pariétal = les projets, occipital = ses sens (serveurs MCP), cervelet = ses réflexes (hooks). Les étoiles sont des entrées, les lignes des relations ; en sélectionner une les montre en arcs avec type et sens. Les impulsions ne partent du tronc cérébral que sur de vrais événements. | ![Tableau de bord](docs/images/dashboard.png) **Tableau de bord.** Ce qu'Astroglia a réellement fait (compté) et économisé (estimé, avec la formule). |
 | ![Santé](docs/images/health.png) **Santé.** Un score avec ses quatre ratios expliqués, les relations suggérées et les mémoires qui se chevauchent (correction en un clic), ce que Claude réutilise le plus, les zones faibles. | ![Timeline](docs/images/timeline.png) **Timeline.** Ce qui a été appris, modifié, est devenu périmé ou a été revalidé, jour par jour : « qu'est-ce qui a changé depuis la dernière fois ? » |
 
 Aussi : **Neural** (parcourir le graphe), **Clusters** (un plugin ou un projet à la fois), **Timeline** (ce qui a été appris, modifié, est devenu périmé, jour par jour), **Health** (score de santé, relations suggérées, mémoires qui se chevauchent, outils jamais utilisés, zones faibles), **Memory** (modifier, fusionner, relier, restaurer n'importe quelle version).

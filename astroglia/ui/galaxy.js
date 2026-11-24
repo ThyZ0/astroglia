@@ -89,7 +89,7 @@ const BRAIN = {
 const REGION = {
   frontal: { label: "Lobus frontalis", what: "what Claude can do", at: [235, 250] },
   parietal: { label: "Lobus parietalis", what: "projects", at: [600, 160] },
-  occipital: { label: "Lobus occipitalis", what: "senses: MCP servers", at: [830, 280] },
+  occipital: { label: "Lobus occipitalis", what: "senses: MCP servers", at: [842, 300] },
   temporal: { label: "Lobus temporalis", what: "what Claude learned", at: [430, 455] },
   cerebellum: { label: "Cerebellum", what: "reflexes: hooks", at: [745, 545] },
 };
@@ -139,7 +139,7 @@ function atlasLayout(nodes) {
     let best = null, bestD = -1;  // best-candidate sampling: clusters spread evenly over their lobe
     for (let i = 0; i < 400 && !(best && i > 60); i++) {
       const x = 100 + r() * 820, y = 40 + r() * 600;
-      if (!deep(reg, x, y, Math.min(spread * 0.7, 30)) || nearTitle(x, y)) continue;
+      if (!deep(reg, x, y, Math.max(24, Math.min(spread * 0.8, 36))) || nearTitle(x, y)) continue;  // keep constellations off the lobe boundaries
       const d = Math.min(1e9, ...[...centers.entries()].filter(([k]) => k.startsWith(reg)).map(([, c]) => Math.hypot(c[0] - x, c[1] - y)));
       if (d > bestD) { best = [x, y]; bestD = d; }
     }
